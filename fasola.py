@@ -78,8 +78,18 @@ def braille_shapenote_part( part):
             line += bar+' '
     return result
 
-    return
 
-def braille_extract_part( filename, partname):
+def braille_extract_part( filename, partname, foldcase=False):
+    """ extracts a part with name partname from a musicxml file filename,
+    if foldcase is True the name match is case insensitive"""
     piece = musicxml.Score( filename)
-    part = get_part_from_score( piece, partname)
+    parts = [p for p in piece]
+    if foldcase: copyname = partname.lower()
+    else: copyname = partname
+    if foldcase: names = [p.name.lower() for p in piece] # part names
+    else: names = [p.name for p in piece]
+    try: return parts[ names.index( copyname)]
+    except ValueError:
+        print 'braille_extract_part, cannot find part named ',partname
+        return None
+
