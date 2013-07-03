@@ -1,5 +1,58 @@
 import musicxml
 from utils.rational import Rational 
+from HTMLParser import HTMLParser
+import louis 
+import textwrap 
+
+lyricsdir='html'
+musicdir='xml'
+
+class Fasolaparser( HTMLParser):
+    """ subclass for handling the html from fasola.org"""
+    def __init__( self, filename):
+        """ initialize the parser and get the file contents into a string"""
+        HTMLParser.__init__(self)
+        f = open(filename, 'r')
+        self.content = f.read()
+        f.close()
+        self.title=''
+        self.intitle = False
+        self.lyrics=''
+        self.inlyrics = False
+        self.lyricsanchor = False
+        self.feed(self.content)
+
+    def handle_starttag(self, tag, attrs):
+        """really just turning on tags for the handle_data"""
+        if (tag == 'a') and (attrs[0][1] == 'LYRICS'): self.lyricsanchor = True
+        if (tag == 'center') and self.lyricsanchor: self.inlyrics = True
+        if tag == 'title': self.intitle = True
+    def handle_endtag( self, tag):
+        """ just unsets some booleans"""
+        if tag == 'center': self.inlyrics = False
+        if tag == 'title': self.intitle = False
+    def handle_data( self, data):
+        """ adds data to required fields, something tells me I should generalize this"""
+        if self.inlyrics: self.lyrics+=data
+        if self.intitle: self.title+=data
+        
+def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
+    """ returns brailled string of lyrics from fasola file filename using louistable"""
+    result=''
+    text = Fasolaparser(filename)
+    verses = text.lyrics.replace('\r', '').split('\n\n')
+    result += louis.translateString( [louistable],  text.title.lower().strip())+'\n'
+    for verse in verses[1:]: # for some reason verse 0 is empty
+        versestring = '  ' # two indented spaces to start
+        lines = verse.split('\n')
+        for line in lines:
+            versestring += louis.translateString( [louistable],  line.lower().strip())
+            versestring += ' > ' # braille line marker
+        result += textwrap.fill( versestring, width=width)[0:-2]+'\n'
+    return result
+
+
+        
 
 # some rational numbers for comparing with note.getValue()
 eighth = Rational(1,d=8)
@@ -95,11 +148,7 @@ def braille_shapenote_part( part):
     key = measures[-1].key()
     for measure in part:
         bar = braille_shapenote_bar( measure, key)
-        if len( line+bar) > linewidth:
-            result +=line+"\n"
-            line = bar
-        else:
-            line += bar+' '
+        result += bar + ' ' 
     return result
 
 
@@ -116,4 +165,15 @@ def braille_extract_part( filename, partname, foldcase=False):
     except ValueError:
         print 'braille_extract_part, cannot find part named ',partname
         return None
+
+def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32):
+    """ produces string with lyrics and selected parts"""
+    result = ''
+    result+= braillewords( lyricsdir+'/'+number+'.htm', louistable=louistable, width=width)
+    for p in parts:
+        partstring = '  '+louis.translateString( [louistable], p)+': '
+        partstring += braille_shapenote_part( braille_extract_part( musicdir+'/'+number+'.xml', p))
+        result += textwrap.fill( partstring, width=width)+'\n'
+    return result
+
 
