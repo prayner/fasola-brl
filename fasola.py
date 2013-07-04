@@ -1,3 +1,4 @@
+import os
 import musicxml
 from utils.rational import Rational 
 from HTMLParser import HTMLParser
@@ -36,7 +37,7 @@ class Fasolaparser( HTMLParser):
         if self.inlyrics: self.lyrics+=data
         if self.intitle: self.title+=data
         
-def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
+def braillewords( filename, louistable="en-GB-g2.ctb", width=33):
     """ returns brailled string of lyrics from fasola file filename using louistable"""
     result=''
     text = Fasolaparser(filename)
@@ -73,7 +74,7 @@ note2shape = {0:'fa', 2:'so', 4:'la', 5:'fa', 7:'so', 9:'la', 11:'mi', None:'res
 
 # some things to do with braille printers
 dot = r"'"
-linewidth = 32
+linewidth = 33
 unknown = '#'
 upup = '"'
 up = '^'
@@ -117,14 +118,14 @@ def note2symbol(note, key):
 
 
 
-def braille_shapenote_bar( bar, key):
+def braille_shapenote_bar( bar, key, oldgroup=None):
     """ returns a string of symbols for the shapes in the bar
     The current plan is that each note is a symbol and optionally followed by a dot.
     If the note moves outside the fasola group it is preceded by symbols meaning up or down"""
     result = []
+    if bar.newSystem(): result += '> ' # add linebreak 
     notes = [n for n in bar if isinstance(n,  musicxml.Note)]
     oldsymbol = None
-    oldgroup = None
     for note in notes:
         symbol, group = note2symbol( note, key)
         if oldgroup is not None:
@@ -135,7 +136,7 @@ def braille_shapenote_bar( bar, key):
         result.append( symbol)
         if (note.getValue() not in known_durations) & (note.duration > 1): result.append( dot) # not very precise but gives warning it's nonstandard length
         if group is not None: oldgroup = group
-    return r''.join(result) # simply concatenate 
+    return r''.join(result), oldgroup # simply concatenate 
 
 
         
@@ -146,8 +147,9 @@ def braille_shapenote_part( part):
     line = ''
     measures = [m for m in part]
     key = measures[-1].key()
+    lastgroup = None # records group of last note in bar, really state for printing up/down at start of next bar
     for measure in part:
-        bar = braille_shapenote_bar( measure, key)
+        bar, lastgroup = braille_shapenote_bar( measure, key, oldgroup=lastgroup)
         result += bar + ' ' 
     return result
 
@@ -166,14 +168,15 @@ def braille_extract_part( filename, partname, foldcase=False):
         print 'braille_extract_part, cannot find part named ',partname
         return None
 
-def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32):
+def braillesong( number, parts, louistable='en-GB-g2.ctb', width=33):
     """ produces string with lyrics and selected parts"""
-    result = ''
+    result = r''
     result+= braillewords( lyricsdir+'/'+number+'.htm', louistable=louistable, width=width)
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+': '
         partstring += braille_shapenote_part( braille_extract_part( musicdir+'/'+number+'.xml', p))
         result += textwrap.fill( partstring, width=width)+'\n'
+    result = '\r'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
 
 
