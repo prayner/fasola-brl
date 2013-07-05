@@ -43,9 +43,9 @@ def braillewords( filename, louistable="en-GB-g2.ctb", width=33):
     text = Fasolaparser(filename)
     verses = text.lyrics.replace('\r', '').split('\n\n')
     result += louis.translateString( [louistable],  text.title.lower().strip())+'\n'
-    for verse in verses[1:]: # for some reason verse 0 is empty
+    for verse in verses: # verse 0 is often empty but we'll deal with that later
         versestring = '  ' # two indented spaces to start
-        lines = verse.split('\n')
+        lines = [l for l in verse.split('\n') if len(l.strip())]
         for line in lines:
             versestring += louis.translateString( [louistable],  line.lower().strip())
             versestring += ' > ' # braille line marker
@@ -168,15 +168,37 @@ def braille_extract_part( filename, partname, foldcase=False):
         print 'braille_extract_part, cannot find part named ',partname
         return None
 
-def braillesong( number, parts, louistable='en-GB-g2.ctb', width=33):
-    """ produces string with lyrics and selected parts"""
+def braillesong( number, parts, louistable='en-GB-g2.ctb', width=33, sloppyname=True):
+    """ produces string with lyrics and selected parts.
+    If sloppyname is True it will sniff for t or a extensions to the filename"""
     result = r''
+    # now some strange naming conventions mean we have to sniff about a bit here
+    if not os.access( lyricsdir+'/'+number+'.htm', os.F_OK):
+        if not sloppyname: raise IOError
+        basenumber = number
+        possible_extensions = ['t','a','ta'] # possible additions to name from most to least preferred order
+        for extension in possible_extensions:
+            number = basenumber+extension
+            if os.access( lyricsdir+'/'+number+'.htm', os.F_OK): break # found one that works
     result+= braillewords( lyricsdir+'/'+number+'.htm', louistable=louistable, width=width)
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+': '
-        partstring += braille_shapenote_part( braille_extract_part( musicdir+'/'+number+'.xml', p))
+        partstring += braille_shapenote_part( braille_extract_part( musicdir+'/'+number+'.xml', p, foldcase=True))
         result += textwrap.fill( partstring, width=width)+'\n'
     result = '\r'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
 
+
+def braillelist( numbers, parts, device='/dev/usb/lp0'):
+    """ brailles shapenote numbers from list"""
+    f=open(device, 'w')
+    for number in numbers:
+        try:
+            song =  braillesong( number, parts)
+            f.write( song + '\f')
+        except IOError:
+            print number,' not found'
+            continue
+    f.close()
+    return
 
