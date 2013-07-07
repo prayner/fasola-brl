@@ -5,7 +5,7 @@ from HTMLParser import HTMLParser
 import louis 
 import textwrap 
 
-lyricsdir='html'
+lyricsdir='/home/prayner/nonwork/fasola/site/www.fasola.org/indexes/1991/index.html?p='
 musicdir='xml'
 
 class Fasolaparser( HTMLParser):
@@ -25,13 +25,13 @@ class Fasolaparser( HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         """really just turning on tags for the handle_data"""
-        if (tag == 'a') and (attrs[0][1] == 'LYRICS'): self.lyricsanchor = True
-        if (tag == 'center') and self.lyricsanchor: self.inlyrics = True
-        if tag == 'title': self.intitle = True
+        if (tag == 'div') and (attrs[0][1] == 'lyrics'): self.inlyrics = True
+        if (tag == 'br') and self.inlyrics: self.lyrics += ''
+        if tag == 'h2': self.intitle = True
     def handle_endtag( self, tag):
         """ just unsets some booleans"""
-        if tag == 'center': self.inlyrics = False
-        if tag == 'title': self.intitle = False
+        if tag == 'div': self.inlyrics = False
+        if tag == 'h2': self.intitle = False
     def handle_data( self, data):
         """ adds data to required fields, something tells me I should generalize this"""
         if self.inlyrics: self.lyrics+=data
@@ -170,20 +170,32 @@ def braille_extract_part( filename, partname, foldcase=False):
 
 def braillesong( number, parts, louistable='en-GB-g2.ctb', width=33, sloppyname=True):
     """ produces string with lyrics and selected parts.
-    If sloppyname is True it will sniff for t or a extensions to the filename"""
+    If sloppyname is True it will sniff for extensions to the filename"""
     result = r''
     # now some strange naming conventions mean we have to sniff about a bit here
-    if not os.access( lyricsdir+'/'+number+'.htm', os.F_OK):
+    copynumber = number
+    if not os.access( lyricsdir+number, os.F_OK):
         if not sloppyname: raise IOError
-        basenumber = number
         possible_extensions = ['t','a','ta'] # possible additions to name from most to least preferred order
         for extension in possible_extensions:
-            number = basenumber+extension
-            if os.access( lyricsdir+'/'+number+'.htm', os.F_OK): break # found one that works
-    result+= braillewords( lyricsdir+'/'+number+'.htm', louistable=louistable, width=width)
+            copynumber = number+extension
+            if os.access( lyricsdir+copynumber, os.F_OK): break # found one that works
+    result+= braillewords( lyricsdir+copynumber, louistable=louistable, width=width)
+    # now we need to play the same game with the music
+    copynumber = number
+    if not os.access(musicdir+'/'+copynumber+'.xml', os.F_OK):
+        if not sloppyname: raise IOError
+        possible_extensions = ['t','a','ta'] # possible additions to name from most to least preferred order
+        for extension in possible_extensions:
+            copynumber = number+extension
+            if os.access( musicdir+'/'+copynumber+'.xml', os.F_OK): break # found one that works
+    
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+': '
-        partstring += braille_shapenote_part( braille_extract_part( musicdir+'/'+number+'.xml', p, foldcase=True))
+        try: partstring += braille_shapenote_part( braille_extract_part( musicdir+'/'+copynumber+'.xml', p, foldcase=True))
+        except IndexError:
+            print 'braillesong, problem with',number
+            continue
         result += textwrap.fill( partstring, width=width)+'\n'
     result = '\r'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
@@ -193,6 +205,7 @@ def braillelist( numbers, parts, device='/dev/usb/lp0'):
     """ brailles shapenote numbers from list"""
     f=open(device, 'w')
     for number in numbers:
+        print number
         try:
             song =  braillesong( number, parts)
             f.write( song + '\f')
