@@ -127,6 +127,7 @@ def braille_shapenote_bar( bar, key, oldgroup=None):
     notes = [n for n in bar if isinstance(n,  musicxml.Note)]
     oldsymbol = None
     for note in notes:
+        if note.chord: continue
         symbol, group = note2symbol( note, key)
         if oldgroup is not None:
             if group > oldgroup +1: result.append(upup)
