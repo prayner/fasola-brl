@@ -122,12 +122,16 @@ def braille_shapenote_bar( bar, key, oldgroup=None):
     """ returns a string of symbols for the shapes in the bar
     The current plan is that each note is a symbol and optionally followed by a dot.
     If the note moves outside the fasola group it is preceded by symbols meaning up or down"""
+    global haschord 
     result = []
     if bar.newSystem(): result += '> ' # add linebreak 
     notes = [n for n in bar if isinstance(n,  musicxml.Note)]
     oldsymbol = None
     for note in notes:
-        if note.chord: continue
+        if note.chord:
+            haschord = True
+            continue
+        
         symbol, group = note2symbol( note, key)
         if oldgroup is not None:
             if group > oldgroup +1: result.append(upup)
@@ -173,6 +177,8 @@ def braillesong( number, parts, louistable='en-GB-g2.ctb', width=33, sloppyname=
     """ produces string with lyrics and selected parts.
     If sloppyname is True it will sniff for extensions to the filename"""
     result = r''
+    global haschord
+    haschord = False
     # now some strange naming conventions mean we have to sniff about a bit here
     copynumber = number
     if not os.access( lyricsdir+number, os.F_OK):
@@ -199,20 +205,21 @@ def braillesong( number, parts, louistable='en-GB-g2.ctb', width=33, sloppyname=
             continue
         result += textwrap.fill( partstring, width=width)+'\n'
     result = '\r'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
-    return result
+    return haschord
 
 
 def braillelist( numbers, parts, device='/dev/usb/lp0'):
     """ brailles shapenote numbers from list"""
     f=open(device, 'w')
+    global haschord
+    haschords=[]
     for number in numbers:
         print number
         try:
-            song =  braillesong( number, parts)
-            f.write( song + '\f')
+            if braillesong( number, parts): haschords.append( number)
         except IOError:
             print number,' not found'
             continue
     f.close()
-    return
+    return haschords
 
