@@ -76,7 +76,7 @@ note2shape = {0:'fa', 2:'so', 4:'la', 5:'fa', 7:'so', 9:'la', 11:'mi', None:'res
 dot = r"'"
 linewidth = 33
 unknown = '#'
-upup = '"'
+upup = '@'
 up = '^'
 down = ';'
 downdown = ','
@@ -158,7 +158,8 @@ def braille_shapenote_part( part):
 def braille_extract_part( filename, partname, foldcase=False):
     """ extracts a part with name partname from a musicxml file filename,
     if foldcase is True the name match is case insensitive"""
-    piece = musicxml.Score( filename)
+    try: piece = musicxml.Score( filename)
+    except: raise IndexError
     parts = [p for p in piece]
     if foldcase: copyname = partname.lower()
     else: copyname = partname
@@ -215,4 +216,13 @@ def braillelist( numbers, parts, device='/dev/usb/lp0'):
             continue
     f.close()
     return
+
+def extract_numbers( filename):
+    """ returns a set of strings which are words containing a digit from the filename """
+    import re
+    f = open( filename, 'r')
+    # now return the words with punctuation removed and lower case
+    words = re.sub('[.,;]', ' ', f.read()).lower().split()
+    f.close()
+    return [w for w in words if re.search('\d', w)]
 
