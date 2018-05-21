@@ -5,7 +5,7 @@ from HTMLParser import HTMLParser
 import louis 
 import textwrap 
 
-lyricsdir='/home/prayner/nonwork/fasola/site/www.fasola.org/indexes/1991/index.html?p='
+lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/site/www.fasola.org/indexes/1991/index.html?p='
 musicdir='xml'
 
 class Fasolaparser( HTMLParser):
