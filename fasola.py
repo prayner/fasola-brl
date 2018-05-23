@@ -37,19 +37,18 @@ class Fasolaparser( HTMLParser):
         if self.inlyrics: self.lyrics+=data
         if self.intitle: self.title+=data
         
-def braillewords( filename, louistable="en-GB-g2.ctb", width=33):
+def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
     """ returns brailled string of lyrics from fasola file filename using louistable"""
     result=''
     text = Fasolaparser(filename)
     verses = text.lyrics.replace('\r', '').split('\n\n')
     result += louis.translateString( [louistable],  text.title.lower().strip())+'\n'
     for verse in verses: # verse 0 is often empty but we'll deal with that later
-        versestring = '  ' # two indented spaces to start
+        result += '  ' # two indented spaces to start verse
         lines = [l for l in verse.split('\n') if len(l.strip())]
         for line in lines:
-            versestring += louis.translateString( [louistable],  line.lower().strip())
-            versestring += ' > ' # braille line marker
-        result += textwrap.fill( versestring, width=width)[0:-2]+'\n'
+            linestring = louis.translateString( [louistable],  line.lower().strip())
+            result += textwrap.fill( linestring, width=width)+'\n'
     return result
 
 
@@ -74,7 +73,7 @@ note2shape = {0:'fa', 2:'so', 4:'la', 5:'fa', 7:'so', 9:'la', 11:'mi', None:'res
 
 # some things to do with braille printers
 dot = r"'"
-linewidth = 33
+linewidth = 32
 unknown = '#'
 upup = '@'
 up = '^'
@@ -123,13 +122,13 @@ def braille_shapenote_bar( bar, key, oldgroup=None):
     The current plan is that each note is a symbol and optionally followed by a dot.
     If the note moves outside the fasola group it is preceded by symbols meaning up or down"""
     result = []
-    if bar.newSystem(): result += '> ' # add linebreak 
+    if bar.newSystem(): result += '\n' # add linebreak 
     notes = [n for n in bar if isinstance(n,  musicxml.Note)]
     oldsymbol = None
     for note in notes:
         if note.chord: continue
         symbol, group = note2symbol( note, key)
-        if oldgroup is not None:
+        if (oldgroup is not None) and (note.pitch is not None):
             if group > oldgroup +1: result.append(upup)
             elif group == oldgroup + 1: result.append(up)
             elif group == oldgroup -1: result.append( down)
@@ -143,16 +142,18 @@ def braille_shapenote_bar( bar, key, oldgroup=None):
         
 
 def braille_shapenote_part( part):
-    """ returns string which is transcription of part """
-    result=r''
+    """ returns string which is transcription of part. first braille it then wordwrap each line separately """
+    unfilled =r''
     line = ''
     measures = [m for m in part]
     key = measures[-1].key()
     lastgroup = None # records group of last note in bar, really state for printing up/down at start of next bar
     for measure in part:
         bar, lastgroup = braille_shapenote_bar( measure, key, oldgroup=lastgroup)
-        result += bar + ' ' 
-    return result
+        unfilled += bar + ' '
+    linelist = []
+    for line in unfilled.split('\n'): linelist.append(textwrap.fill( line, width=32)+'\n')
+    return ''.join(linelist)
 
 
 def braille_extract_part( filename, partname, foldcase=False):
@@ -170,7 +171,7 @@ def braille_extract_part( filename, partname, foldcase=False):
         print 'braille_extract_part, cannot find part named ',partname
         return None
 
-def braillesong( number, parts, louistable='en-GB-g2.ctb', width=33, sloppyname=True):
+def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32, sloppyname=True):
     """ produces string with lyrics and selected parts.
     If sloppyname is True it will sniff for extensions to the filename"""
     result = r''
@@ -193,13 +194,13 @@ def braillesong( number, parts, louistable='en-GB-g2.ctb', width=33, sloppyname=
             if os.access( musicdir+'/'+copynumber+'.xml', os.F_OK): break # found one that works
     
     for p in parts:
-        partstring = '  '+louis.translateString( [louistable], p)+': '
+        partstring = '  '+louis.translateString( [louistable], p)+':\n'
         try: partstring += braille_shapenote_part( braille_extract_part( musicdir+'/'+copynumber+'.xml', p, foldcase=True))
         except IndexError:
             print 'braillesong, problem with',number
             continue
-        result += textwrap.fill( partstring, width=width)+'\n'
-    result = '\r'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
+        result += partstring
+    result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
 
 
@@ -210,7 +211,7 @@ def braillelist( numbers, parts, device='/dev/usb/lp0'):
         print number
         try:
             song =  braillesong( number, parts)
-            f.write( song + '\f')
+            f.write( song)
         except IOError:
             print number,' not found'
             continue
