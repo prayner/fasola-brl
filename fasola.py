@@ -1,5 +1,7 @@
 import os
 import musicxml
+import unicodedata
+import codecs
 from utils.rational import Rational 
 from HTMLParser import HTMLParser
 import louis 
@@ -54,6 +56,9 @@ def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
 
         
 
+def brlP(n):
+    """returns the braille character for pattern n e.g. grlP(1234) returns the unicode character Braille Pattern dots-1234 or p"""
+    return unicodedata.lookup('BRAILLE PATTERN DOTS-'+'{}'.format(n))
 # some rational numbers for comparing with note.getValue()
 eighth = Rational(1,d=8)
 quarter = Rational(1, d=4)
@@ -61,10 +66,10 @@ half = Rational(1,d=2)
 whole = Rational(1,d=1)
 
 # define dictionaries of braille output according to length
-veryshort = {'fa':'f', 'so':'i', 'la':'b', 'mi':'c', 'rest':'g'}
-short = {'fa':'p', 'so':'s', 'la':'l', 'mi':'m', 'rest':'q'}
-long = {'fa':'$', 'so':'[', 'la':'<', 'mi':'%', 'rest':']'}
-verylong ={'fa':'&', 'so':'!', 'la':'v', 'mi':'x', 'rest':'='}
+veryshort = {0:brlP(1247), 2:brlP(247), 4:brlP(127), 5:brlP(1248), 7:brlP(248), 9:brlP(128), 11:brlP(148), None:brlP(1245)} 
+short = {0:brlP(12347), 2:brlP(2347), 4:brlP(1237), 5:brlP(12348), 7:brlP(2348), 9:brlP(1238), 11:brlP(1348), None:brlP(12345)} 
+long = {0:brlP(12467), 2:brlP(2467), 4:brlP(1267), 5:brlP(12468), 7:brlP(2468), 9:brlP(1268), 11:brlP(1468), None:brlP(12456)} 
+verylong = {0:brlP(123467), 2:brlP(23467), 4:brlP(12367), 5:brlP(123468), 7:brlP(23468), 9:brlP(12368), 11:brlP(13468), None:brlP(12456)} 
 # and known lengths
 known_durations = [eighth, quarter, half, whole]
 # dictionary mapping the needed tones onto shapes, do this as a dictionary since it guarantees it will break if it gets an accidental rather than producing rubbish
@@ -74,29 +79,22 @@ note2shape = {0:'fa', 2:'so', 4:'la', 5:'fa', 7:'so', 9:'la', 11:'mi', None:'res
 # some things to do with braille printers
 dot = r"'"
 linewidth = 32
-unknown = '#'
-upup = '@'
-up = '^'
-down = ';'
-downdown = ','
+unknown = brlP(3456)
+up = brlP(45)
+down = brlP(68)
+
 
 def tonicMIDIpitch(key):
     """ returns the MIDIpitch of the tonic note in the key with the integer value "key" """
     return 60 + 7*key
 
-def fasolagroup( note, key):
-    """ returns the group (like stave I think) for the relevant note.
-    There are 2 groups in each octave, the lower fasola and the upper fasolami
-    .
-    Groups are numbered from zero in the lower octave"""
+def octaveInKey( note, key):
+    """ returns the octave for the key, i.e only changes at tonic not c"""
     if note.pitch is None: return None
     tonic = tonicMIDIpitch( key) % 12 # key in range(0,12)
     note_number = note.pitch.getMIDIpitch()
     note_in_key = note_number - tonic
-    if note_in_key % 12 < 5: group_in_octave = 0
-    else: group_in_octave = 1
-    # now there's 2 groups per octave so work out what octave it's in, multiply by 2 and add the group
-    return 2*( note_in_key /12) + group_in_octave
+    return  note_in_key /12
 
 def note2symbol(note, key):
     """ returns the braille symbol for the given note in the given key,
@@ -112,7 +110,7 @@ def note2symbol(note, key):
     elif (duration >= eighth) & (duration < quarter): dict = veryshort
     elif (duration >= quarter) & (duration < half): dict = short
     else: dict = long
-    try: return dict[ note2shape [ step]], fasolagroup( note, key)
+    try: return dict[ step], octaveInKey( note, key)
     except KeyError: return unknown, None
 
 
@@ -120,7 +118,7 @@ def note2symbol(note, key):
 def braille_shapenote_bar( bar, key, oldgroup=None):
     """ returns a string of symbols for the shapes in the bar
     The current plan is that each note is a symbol and optionally followed by a dot.
-    If the note moves outside the fasola group it is preceded by symbols meaning up or down"""
+    If the note moves outside the octave it is preceded by symbols meaning up or down"""
     result = []
     if bar.newSystem(): result += '\n' # add linebreak 
     notes = [n for n in bar if isinstance(n,  musicxml.Note)]
@@ -206,7 +204,7 @@ def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32, sloppyname=
 
 def braillelist( numbers, parts, device='/dev/usb/lp0'):
     """ brailles shapenote numbers from list"""
-    f=open(device, 'w')
+    f=codecs.open(device, 'w',encoding='utf-8')
     for number in numbers:
         print number
         try:
