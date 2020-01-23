@@ -1,14 +1,16 @@
 import os
-import musicxml
+import music21
 import unicodedata
 import codecs
-from utils.rational import Rational 
-from HTMLParser import HTMLParser
+from html.parser import HTMLParser
 import louis 
 import textwrap 
 
 lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/site/www.fasola.org/indexes/1991/index.html?p='
 musicdir='xml'
+# some things to do with braille printers
+linewidth = 32
+
 
 class Fasolaparser( HTMLParser):
     """ subclass for handling the html from fasola.org"""
@@ -40,18 +42,18 @@ class Fasolaparser( HTMLParser):
         if self.intitle: self.title+=data
         
 def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
-    """ returns brailled string of lyrics from fasola file filename using louistable"""
-    result=''
+    """ returns brailled string of lyrics from fasola file filename using louistable, separates title and lyrics"""
     text = Fasolaparser(filename)
     verses = text.lyrics.replace('\r', '').split('\n\n')
-    result += louis.translateString( [louistable],  text.title.lower().strip())+'\n'
+    title = louis.translateString( [louistable],  text.title.lower().strip())+'\n'
+    lyrics=''
     for verse in verses: # verse 0 is often empty but we'll deal with that later
-        result += '  ' # two indented spaces to start verse
+        lyrics += '  ' # two indented spaces to start verse
         lines = [l for l in verse.split('\n') if len(l.strip())]
         for line in lines:
             linestring = louis.translateString( [louistable],  line.lower().strip())
-            result += textwrap.fill( linestring, width=width)+'\n'
-    return result
+            lyrics += textwrap.fill( linestring, width=width)+'\n'
+    return title, lyrics
 
 
         
@@ -59,95 +61,113 @@ def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
 def brlP(n):
     """returns the braille character for pattern n e.g. grlP(1234) returns the unicode character Braille Pattern dots-1234 or p"""
     return unicodedata.lookup('BRAILLE PATTERN DOTS-'+'{}'.format(n))
-# some rational numbers for comparing with note.getValue()
-eighth = Rational(1,d=8)
-quarter = Rational(1, d=4)
-half = Rational(1,d=2)
-whole = Rational(1,d=1)
 
-# define dictionaries of braille output according to length
-veryshort = {0:brlP(1247), 2:brlP(247), 4:brlP(127), 5:brlP(1248), 7:brlP(248), 9:brlP(128), 11:brlP(148), None:brlP(1245)} 
-short = {0:brlP(12347), 2:brlP(2347), 4:brlP(1237), 5:brlP(12348), 7:brlP(2348), 9:brlP(1238), 11:brlP(1348), None:brlP(12345)} 
-long = {0:brlP(12467), 2:brlP(2467), 4:brlP(1267), 5:brlP(12468), 7:brlP(2468), 9:brlP(1268), 11:brlP(1468), None:brlP(12456)} 
-verylong = {0:brlP(123467), 2:brlP(23467), 4:brlP(12367), 5:brlP(123468), 7:brlP(23468), 9:brlP(12368), 11:brlP(13468), None:brlP(12456)} 
-# and known lengths
-known_durations = [eighth, quarter, half, whole]
-# dictionary mapping the needed tones onto shapes, do this as a dictionary since it guarantees it will break if it gets an accidental rather than producing rubbish
-# starts with 0 as the tonic so expect lots of modulo
-note2shape = {0:'fa', 2:'so', 4:'la', 5:'fa', 7:'so', 9:'la', 11:'mi', None:'rest'}
+# define dictionaries of braille output
+# start by defining patterns for major, patterns are different for different note lengths
+majorVeryShort = {0:brlP(1247), 2:brlP(247), 4:brlP(127), 5:brlP(1248), 7:brlP(248), 9:brlP(128), 11:brlP(148), None:brlP(1245)} 
+majorShort = {0:brlP(12347), 2:brlP(2347), 4:brlP(1237), 5:brlP(12348), 7:brlP(2348), 9:brlP(1238), 11:brlP(1348), None:brlP(12345)} 
+majorLong = {0:brlP(12467), 2:brlP(2467), 4:brlP(1267), 5:brlP(12468), 7:brlP(2468), 9:brlP(1268), 11:brlP(1468), None:brlP(12456)} 
+majorVeryLong = {0:brlP(123467), 2:brlP(23467), 4:brlP(12367), 5:brlP(123468), 7:brlP(23468), 9:brlP(12368), 11:brlP(13468), None:brlP(12456)} 
+minorVeryShort = {3:brlP(1247), 5:brlP(247), 0:brlP(127), 8:brlP(1248), 10:brlP(248), 7:brlP(128), 2:brlP(147), None:brlP(1245)} 
+minorShort = {3:brlP(12347), 5:brlP(2347), 0:brlP(1237), 8:brlP(12348), 10:brlP(2348), 7:brlP(1238), 2:brlP(1347), None:brlP(12345)} 
+minorLong = {3:brlP(12467), 5:brlP(2467), 0:brlP(1267), 8:brlP(12468), 10:brlP(2468), 7:brlP(1268), 2:brlP(1467), None:brlP(12456)} 
+minorVeryLong = {3:brlP(123467), 5:brlP(23467), 0:brlP(12367), 8:brlP(123468), 10:brlP(23468), 7:brlP(12368), 2:brlP(13467), None:brlP(12456)} 
 
-# some things to do with braille printers
-dot = r"'"
-linewidth = 32
+
+# now create dictionaries for each mode keyed by length
+majorDict = {'veryShort':majorVeryShort, 'short':majorShort, 'long':majorLong, 'veryLong':majorVeryLong}
+minorDict = {'veryShort':minorVeryShort, 'short':minorShort, 'long':minorLong, 'veryLong':minorVeryLong}
+
+symbolDict={'major':majorDict, 'minor':minorDict}
+dot = brlP(3)
 unknown = brlP(3456)
 up = brlP(45)
 down = brlP(68)
+known_durations = [0.5, 1.0, 2.0, 4.0]
 
 
 def tonicMIDIpitch(key):
     """ returns the MIDIpitch of the tonic note in the key with the integer value "key" """
-    return 60 + 7*key
+    return key.tonic.midi
 
 def octaveInKey( note, key):
     """ returns the octave for the key, i.e only changes at tonic not c"""
-    if note.pitch is None: return None
+    if isinstance(note, music21.note.Rest): return None
     tonic = tonicMIDIpitch( key) % 12 # key in range(0,12)
-    note_number = note.pitch.getMIDIpitch()
+    note_number = note.pitch.midi
     note_in_key = note_number - tonic
     return  note_in_key /12
+def dictByLength( note):
+    """ select correct dictionary for this notelength
+     we have four dictionaries of symbols depending on note length, now choose the right one"""
+    duration = note.duration.quarterLength
+    if (duration < known_durations[0]) | (duration >= known_durations[-1]): return "veryLong"
+    elif (duration >= known_durations[0]) & (duration < known_durations[1]): return  "veryShort"
+    elif (duration >= known_durations[1]) & (duration < known_durations[2]): return "short"
+    else: return "long"
+
 
 def note2symbol(note, key):
     """ returns the braille symbol for the given note in the given key,
-    the fasola group for the note"""
-    if note.pitch is None:
+    the octave relative to tonic  group for the note"""
+    if isinstance(note, music21.note.Rest):
         step = None
     else:
-        note_number = note.pitch.getMIDIpitch()
+        note_number = note.pitch.midi
         step = (note_number - tonicMIDIpitch( key)) % 12
-    # we have four dictionaries of symbols depending on note length, now choose the right one
-    duration = note.getValue()
-    if (duration < eighth) | (duration >= whole): dict = verylong
-    elif (duration >= eighth) & (duration < quarter): dict = veryshort
-    elif (duration >= quarter) & (duration < half): dict = short
-    else: dict = long
-    try: return dict[ step], octaveInKey( note, key)
-    except KeyError: return unknown, None
+    try: return symbolDict[key.mode][dictByLength( note)][ step], octaveInKey( note, key)
+    except KeyError: return unknown, octaveInKey( note, key)
+
+def brailleTimeSignature( sig): return brlP(3456)+sig.ratioString+' '
+        
 
 
-
-def braille_shapenote_bar( bar, key, oldgroup=None):
+def braille_shapenote_bar( bar, key, oldOctave=None):
     """ returns a string of symbols for the shapes in the bar
     The current plan is that each note is a symbol and optionally followed by a dot.
     If the note moves outside the octave it is preceded by symbols meaning up or down"""
-    result = []
-    if bar.newSystem(): result += '\n' # add linebreak 
-    notes = [n for n in bar if isinstance(n,  musicxml.Note)]
-    oldsymbol = None
-    for note in notes:
-        if note.chord: continue
-        symbol, group = note2symbol( note, key)
-        if (oldgroup is not None) and (note.pitch is not None):
-            if group > oldgroup +1: result.append(upup)
-            elif group == oldgroup + 1: result.append(up)
-            elif group == oldgroup -1: result.append( down)
-            elif group < oldgroup -1: result.append( downdown)
-        result.append( symbol)
-        if (note.getValue() not in known_durations) & (note.duration > 1): result.append( dot) # not very precise but gives warning it's nonstandard length
-        if group is not None: oldgroup = group
-    return r''.join(result), oldgroup # simply concatenate 
+    result = u''
+    if len(bar.getElementsByClass('SystemLayout')) > 0: result +='\n' # new line in print so newline in braille
+    for e in bar:
+        if isinstance(e, music21.bar.Repeat):
+            if e.direction == 'start': result+=brlP(238)+brlP(3678)
+            elif e.direction == 'end': result += brlP(3678)+brlP(567)
+        if isinstance(e, music21.meter.TimeSignature): result += brailleTimeSignature(e)
+        if isinstance(e, music21.chord.Chord):
+            result+=brlP(12378)
+            # make list of notes then braille using existing machinery
+            chordNotes = [music21.note.Note(p, duration=e.duration) for p in e.pitches]
+            for note in chordNotes:
+                symbol, octave = note2symbol( note, key)
+                if (oldOctave is not None) and (note.pitch is not None):
+                    if octave == oldOctave +1: result += up
+                    elif octave == oldOctave -1: result +=  down
+                result += symbol
+                if (note.duration.quarterLength not in known_durations) & (note.duration.quarterLength > 0.5): result += dot # not very precise but gives warning it's nonstandard length
+                if octave is not None: oldOctave = octave
+            result += brlP(45678)
+        if isinstance(e, (music21.note.Note, music21.note.Rest)):
+            symbol, octave = note2symbol( e, key)
+            if (oldOctave is not None) and (isinstance(e, music21.note.Note)):
+                if octave == oldOctave +1: result += up
+                elif octave == oldOctave -1: result += down
+            result += symbol
+            if (e.duration.quarterLength not in known_durations) & (e.duration.quarterLength > 0.5): result +=  dot # not very precise but gives warning it's nonstandard length
+            if octave is not None: oldOctave = octave
+    return result, oldOctave # simply concatenate 
 
 
         
 
-def braille_shapenote_part( part):
+def braille_shapenote_part( part, key=None):
     """ returns string which is transcription of part. first braille it then wordwrap each line separately """
-    unfilled =r''
-    line = ''
-    measures = [m for m in part]
-    key = measures[-1].key()
-    lastgroup = None # records group of last note in bar, really state for printing up/down at start of next bar
-    for measure in part:
-        bar, lastgroup = braille_shapenote_bar( measure, key, oldgroup=lastgroup)
+    unfilled =u''
+    line = u''
+    measures = part.recurse().getElementsByClass('Measure')
+    if key is None: key = part.analyze('key')
+    lastOctave = None # records group of last note in bar, really state for printing up/down at start of next bar
+    for measure in measures:
+        bar, lastOctave = braille_shapenote_bar( measure, key, oldOctave=lastOctave)
         unfilled += bar + ' '
     linelist = []
     for line in unfilled.split('\n'): linelist.append(textwrap.fill( line, width=32)+'\n')
@@ -157,22 +177,18 @@ def braille_shapenote_part( part):
 def braille_extract_part( filename, partname, foldcase=False):
     """ extracts a part with name partname from a musicxml file filename,
     if foldcase is True the name match is case insensitive"""
-    try: piece = musicxml.Score( filename)
+    try: piece = music21.converter.parse( filename)
     except: raise IndexError
-    parts = [p for p in piece]
     if foldcase: copyname = partname.lower()
     else: copyname = partname
-    if foldcase: names = [p.name.lower() for p in piece] # part names
-    else: names = [p.name for p in piece]
-    try: return parts[ names.index( copyname)]
-    except ValueError:
-        print 'braille_extract_part, cannot find part named ',partname
+    try: return piece.parts[ copyname]
+    except KeyError:
+        print ('braille_extract_part, cannot find part named ',partname)
         return None
 
 def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32, sloppyname=True):
     """ produces string with lyrics and selected parts.
     If sloppyname is True it will sniff for extensions to the filename"""
-    result = r''
     # now some strange naming conventions mean we have to sniff about a bit here
     copynumber = number
     if not os.access( lyricsdir+number, os.F_OK):
@@ -181,7 +197,8 @@ def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32, sloppyname=
         for extension in possible_extensions:
             copynumber = number+extension
             if os.access( lyricsdir+copynumber, os.F_OK): break # found one that works
-    result+= braillewords( lyricsdir+copynumber, louistable=louistable, width=width)
+    title, lyrics = braillewords( lyricsdir+copynumber, louistable=louistable, width=width)
+    result = title 
     # now we need to play the same game with the music
     copynumber = number
     if not os.access(musicdir+'/'+copynumber+'.xml', os.F_OK):
@@ -191,13 +208,19 @@ def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32, sloppyname=
             copynumber = number+extension
             if os.access( musicdir+'/'+copynumber+'.xml', os.F_OK): break # found one that works
     
+    musicFile = musicdir+'/'+copynumber+'.xml'
+    try: key=music21.converter.parse( musicFile).analyze('key')
+    except music21.converter.ConverterException:
+        print ('braillesong, problem with music for ',number)
+        return result+lyrics
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
-        try: partstring += braille_shapenote_part( braille_extract_part( musicdir+'/'+copynumber+'.xml', p, foldcase=True))
+        try: partstring += braille_shapenote_part( braille_extract_part( musicFile, p, foldcase=True), key=key)
         except IndexError:
-            print 'braillesong, problem with',number
+            print ('braillesong, problem with',number)
             continue
         result += partstring
+    result += lyrics
     result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
 
@@ -206,12 +229,12 @@ def braillelist( numbers, parts, device='/dev/usb/lp0'):
     """ brailles shapenote numbers from list"""
     f=codecs.open(device, 'w',encoding='utf-8')
     for number in numbers:
-        print number
+        print (number)
         try:
             song =  braillesong( number, parts)
             f.write( song)
         except IOError:
-            print number,' not found'
+            print (number,' not found')
             continue
     f.close()
     return
@@ -224,4 +247,8 @@ def extract_numbers( filename):
     words = re.sub('[.,;]', ' ', f.read()).lower().split()
     f.close()
     return [w for w in words if re.search('\d', w)]
-
+from glob import glob
+def brailleAll(indir, outdir):
+    files = glob(indir+'*')
+    for f in files:
+        braillelist([f.replace(indir,'')],['bass'],device=outdir+'/'+f.replace(indir,''))
