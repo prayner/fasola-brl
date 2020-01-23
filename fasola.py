@@ -2,12 +2,21 @@ lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/site/www.fasola.org/index
 musicdir='xml'
 # some things to do with braille printers
 linewidth = 32
+# hardcoded path to liblouis directory, only used if needed
+LOUISDIR = "/usr/lib/python3/dist-packages"
 import os
 import music21
 import unicodedata
 import codecs
 from html.parser import HTMLParser
-import louis 
+# cannot install louis from conda, hack to get it from system package
+try:
+    import louis
+except ImportError:
+    import sys
+    sys.path.append(LOUISDIR)
+    import louis
+    sys.path.remove( LOUISDIR)
 import textwrap 
 
 
