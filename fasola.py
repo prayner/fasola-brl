@@ -1,3 +1,7 @@
+lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/site/www.fasola.org/indexes/1991/index.html?p='
+musicdir='xml'
+# some things to do with braille printers
+linewidth = 32
 import os
 import music21
 import unicodedata
@@ -6,10 +10,6 @@ from html.parser import HTMLParser
 import louis 
 import textwrap 
 
-lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/site/www.fasola.org/indexes/1991/index.html?p='
-musicdir='xml'
-# some things to do with braille printers
-linewidth = 32
 
 
 class Fasolaparser( HTMLParser):
