@@ -4,6 +4,7 @@ musicdir='xml'
 linewidth = 32
 # hardcoded path to liblouis directory, only used if needed
 LOUISDIR = "/usr/lib/python3/dist-packages"
+import shutil
 import os
 import music21
 import unicodedata
@@ -186,8 +187,15 @@ def braille_shapenote_part( part, key=None):
 def braille_extract_part( filename, partname, foldcase=False):
     """ extracts a part with name partname from a musicxml file filename,
     if foldcase is True the name match is case insensitive"""
-    try: piece = music21.converter.parse( filename)
+    try: 
+        piece = music21.converter.parse( filename)
+        for part in ['bass','tenor','alto','treble']:
+            outfile =filename.replace('xml/','midifiles/').replace('.xml','_'+part+'.mid')
+            piece.parts[part].write('midi',outfile)
     except: raise IndexError
+    outfile = filename.replace('xml/','xmlfiles/')
+    shutil.copyfile(filename,outfile)
+
     if foldcase: copyname = partname.lower()
     else: copyname = partname
     try: return piece.parts[ copyname]
