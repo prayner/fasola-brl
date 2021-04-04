@@ -131,10 +131,11 @@ def brailleTimeSignature( sig): return brlP(3456)+sig.ratioString+' '
         
 
 
-def braille_shapenote_bar( bar, key, oldOctave=None):
+def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
     """ returns a string of symbols for the shapes in the bar
     The current plan is that each note is a symbol and optionally followed by a dot.
-    If the note moves outside the octave it is preceded by symbols meaning up or down"""
+    If the note moves outside the octave it is preceded by symbols meaning up or down
+    showSplits determines whether chords are listed in full or just the top note"""
     result = u''
     if len(bar.getElementsByClass('SystemLayout')) > 0: result +='\n' # new line in print so newline in braille
     for e in bar:
@@ -143,10 +144,22 @@ def braille_shapenote_bar( bar, key, oldOctave=None):
             elif e.direction == 'end': result += brlP(3678)+brlP(567)
         if isinstance(e, music21.meter.TimeSignature): result += brailleTimeSignature(e)
         if isinstance(e, music21.chord.Chord):
-            result+=brlP(12378)
-            # make list of notes then braille using existing machinery
-            chordNotes = [music21.note.Note(p, duration=e.duration) for p in e.pitches]
-            for note in chordNotes:
+            if showSplits is not None:
+                result+=brlP(12378)
+                # make list of notes then braille using existing machinery
+                chordNotes = [music21.note.Note(p, duration=e.duration) for p in e.pitches]
+                for note in chordNotes:
+                    symbol, octave = note2symbol( note, key)
+                    if (oldOctave is not None) and (note.pitch is not None):
+                        if octave == oldOctave +1: result += up
+                        elif octave == oldOctave -1: result +=  down
+                    result += symbol
+                    if (note.duration.quarterLength not in known_durations) & (note.duration.quarterLength > 0.5): result += dot # not very precise but gives warning it's nonstandard length
+                    if octave is not None: oldOctave = octave
+                result += brlP(45678)
+            else:
+                topNote = sorted( e.pitches)[-1] # highest note in chord
+                note = music21.note.Note(topNote, duration=e.duration)
                 symbol, octave = note2symbol( note, key)
                 if (oldOctave is not None) and (note.pitch is not None):
                     if octave == oldOctave +1: result += up
@@ -154,7 +167,6 @@ def braille_shapenote_bar( bar, key, oldOctave=None):
                 result += symbol
                 if (note.duration.quarterLength not in known_durations) & (note.duration.quarterLength > 0.5): result += dot # not very precise but gives warning it's nonstandard length
                 if octave is not None: oldOctave = octave
-            result += brlP(45678)
         if isinstance(e, (music21.note.Note, music21.note.Rest)):
             symbol, octave = note2symbol( e, key)
             if (oldOctave is not None) and (isinstance(e, music21.note.Note)):
