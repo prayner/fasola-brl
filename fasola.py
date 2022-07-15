@@ -73,14 +73,21 @@ def brlP(n):
 
 # define dictionaries of braille output
 # start by defining patterns for major, patterns are different for different note lengths
-majorVeryShort = {0:brlP(1247), 2:brlP(247), 4:brlP(127), 5:brlP(1248), 7:brlP(248), 9:brlP(128), 11:brlP(148), None:brlP(1245)} 
-majorShort = {0:brlP(12347), 2:brlP(2347), 4:brlP(1237), 5:brlP(12348), 7:brlP(2348), 9:brlP(1238), 11:brlP(1348), None:brlP(12345)} 
-majorLong = {0:brlP(12467), 2:brlP(2467), 4:brlP(1267), 5:brlP(12468), 7:brlP(2468), 9:brlP(1268), 11:brlP(1468), None:brlP(12456)} 
-majorVeryLong = {0:brlP(123467), 2:brlP(23467), 4:brlP(12367), 5:brlP(123468), 7:brlP(23468), 9:brlP(12368), 11:brlP(13468), None:brlP(12456)} 
-minorVeryShort = {3:brlP(1247), 5:brlP(247), 0:brlP(127), 8:brlP(1248), 10:brlP(248), 7:brlP(128), 2:brlP(147), None:brlP(1245)} 
-minorShort = {3:brlP(12347), 5:brlP(2347), 0:brlP(1237), 8:brlP(12348), 10:brlP(2348), 7:brlP(1238), 2:brlP(1347), None:brlP(12345)} 
-minorLong = {3:brlP(12467), 5:brlP(2467), 0:brlP(1267), 8:brlP(12468), 10:brlP(2468), 7:brlP(1268), 2:brlP(1467), None:brlP(12456)} 
-minorVeryLong = {3:brlP(123467), 5:brlP(23467), 0:brlP(12367), 8:brlP(123468), 10:brlP(23468), 7:brlP(12368), 2:brlP(13467), None:brlP(12456)} 
+majorVeryShort = {0:brlP(1234), 2:brlP(234), 4:brlP(123), 5:brlP(1246), 7:brlP(246), 9:brlP(126), 11:brlP(146), None:brlP(1245)} 
+majorShort = {0:brlP(12347), 2:brlP(2347), 4:brlP(1237), 5:brlP(12467), 7:brlP(2467), 9:brlP(1267), 11:brlP(1467), None:brlP(12457)} 
+majorLong = {0:brlP(12348), 2:brlP(2348), 4:brlP(1238), 5:brlP(12468), 7:brlP(2468), 9:brlP(1268), 11:brlP(1468), None:brlP(12458)} 
+majorVeryLong = {0:brlP(123478), 2:brlP(23478), 4:brlP(12378), 5:brlP(124678), 7:brlP(24678), 9:brlP(12678), 11:brlP(14678), None:brlP(124578)}
+# now set up the minor patterns from the major ones, noting that note numbers are different
+minorVeryShort = {}
+minorShort = {}
+minorLong = {}
+minorVeryLong = {}
+# tuples have first minor number then corresponding major number
+for t in [(3, 0), (5, 2), (7, 4), (8, 5), (10, 7), (0, 9), (2, 11)]:
+    minorVeryShort[t[0]] = majorVeryShort[t[1]]
+    minorShort[t[0]] = majorShort[t[1]]
+    minorLong[t[0]] = majorLong[t[1]] 
+    minorVeryLong[t[0]] = majorVeryLong[t[1]]
 
 
 # now create dictionaries for each mode keyed by length
