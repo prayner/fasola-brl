@@ -83,7 +83,7 @@ minorShort = {}
 minorLong = {}
 minorVeryLong = {}
 # tuples have first minor number then corresponding major number
-for t in [(3, 0), (5, 2), (7, 4), (8, 5), (10, 7), (0, 9), (2, 11)]:
+for t in [(0, 4), (2, 11), (3, 0), (5, 2), (7, 9), (8, 5), (10, 7), (None, None)]:
     minorVeryShort[t[0]] = majorVeryShort[t[1]]
     minorShort[t[0]] = majorShort[t[1]]
     minorLong[t[0]] = majorLong[t[1]] 
