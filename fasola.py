@@ -112,7 +112,7 @@ def octaveInKey( note, key):
     tonic = tonicMIDIpitch( key) % 12 # key in range(0,12)
     note_number = note.pitch.midi
     note_in_key = note_number - tonic
-    return  note_in_key /12
+    return  note_in_key // 12
 def dictByLength( note):
     """ select correct dictionary for this notelength
      we have four dictionaries of symbols depending on note length, now choose the right one"""
