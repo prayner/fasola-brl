@@ -73,10 +73,10 @@ def brlP(n):
 
 # define dictionaries of braille output
 # start by defining patterns for major, patterns are different for different note lengths
-majorVeryShort = {0:brlP(1234), 2:brlP(234), 4:brlP(123), 5:brlP(1246), 7:brlP(246), 9:brlP(126), 11:brlP(146), None:brlP(1245)} 
-majorShort = {0:brlP(12347), 2:brlP(2347), 4:brlP(1237), 5:brlP(12467), 7:brlP(2467), 9:brlP(1267), 11:brlP(1467), None:brlP(12457)} 
-majorLong = {0:brlP(12348), 2:brlP(2348), 4:brlP(1238), 5:brlP(12468), 7:brlP(2468), 9:brlP(1268), 11:brlP(1468), None:brlP(12458)} 
-majorVeryLong = {0:brlP(123478), 2:brlP(23478), 4:brlP(12378), 5:brlP(124678), 7:brlP(24678), 9:brlP(12678), 11:brlP(14678), None:brlP(124578)}
+majorVeryShort = {0:brlP(3), 2:brlP(2), 4:brlP(1), 5:brlP(6), 7:brlP(5), 9:brlP(4), 11:brlP(14), None:brlP(1245)} 
+majorShort = {0:brlP(37), 2:brlP(27), 4:brlP(17), 5:brlP(67), 7:brlP(57), 9:brlP(47), 11:brlP(147), None:brlP(12457)} 
+majorLong = {0:brlP(38), 2:brlP(28), 4:brlP(18), 5:brlP(68), 7:brlP(58), 9:brlP(48), 11:brlP(148), None:brlP(12458)} 
+majorVeryLong = {0:brlP(378), 2:brlP(278), 4:brlP(178), 5:brlP(678), 7:brlP(578), 9:brlP(478), 11:brlP(1478), None:brlP(124578)}
 # now set up the minor patterns from the major ones, noting that note numbers are different
 minorVeryShort = {}
 minorShort = {}
@@ -97,8 +97,9 @@ minorDict = {'veryShort':minorVeryShort, 'short':minorShort, 'long':minorLong, '
 symbolDict={'major':majorDict, 'minor':minorDict}
 dot = brlP(3)
 unknown = brlP(3456)
-up = brlP(45)
-down = brlP(68)
+up = brlP(456)
+down = brlP(568)
+barLine = brlP(4568)
 known_durations = [0.5, 1.0, 2.0, 4.0]
 
 
@@ -144,6 +145,7 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
     If the note moves outside the octave it is preceded by symbols meaning up or down
     showSplits determines whether chords are listed in full or just the top note"""
     result = u''
+    result += barLine
     if len(bar.getElementsByClass('SystemLayout')) > 0: result +='\n' # new line in print so newline in braille
     for e in bar:
         if isinstance(e, music21.bar.Repeat):
