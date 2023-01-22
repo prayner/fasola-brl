@@ -1,5 +1,5 @@
-lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/site/www.fasola.org/indexes/1991/index.html?p='
-musicdir='xml'
+lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/shenandoah-harmony/WholeBook/Lilypond files/'
+musicdir='/home/unimelb.edu.au/prayner/nonwork/fasola/shenandoah-harmony/WholeBook/MIDI files'
 # some things to do with braille printers
 linewidth = 32
 # hardcoded path to liblouis directory, only used if needed
@@ -8,7 +8,7 @@ import os
 import music21
 import unicodedata
 import codecs
-from html.parser import HTMLParser
+import ly
 # cannot install louis from conda, hack to get it from system package
 try:
     import louis
@@ -21,38 +21,13 @@ import textwrap
 
 
 
-class Fasolaparser( HTMLParser):
-    """ subclass for handling the html from fasola.org"""
-    def __init__( self, filename):
-        """ initialize the parser and get the file contents into a string"""
-        HTMLParser.__init__(self)
-        f = open(filename, 'r')
-        self.content = f.read()
-        f.close()
-        self.title=''
-        self.intitle = False
-        self.lyrics=''
-        self.inlyrics = False
-        self.lyricsanchor = False
-        self.feed(self.content)
 
-    def handle_starttag(self, tag, attrs):
-        """really just turning on tags for the handle_data"""
-        if (tag == 'div') and (attrs[0][1] == 'lyrics'): self.inlyrics = True
-        if (tag == 'br') and self.inlyrics: self.lyrics += ''
-        if tag == 'h2': self.intitle = True
-    def handle_endtag( self, tag):
-        """ just unsets some booleans"""
-        if tag == 'div': self.inlyrics = False
-        if tag == 'h2': self.intitle = False
-    def handle_data( self, data):
-        """ adds data to required fields, something tells me I should generalize this"""
-        if self.inlyrics: self.lyrics+=data
-        if self.intitle: self.title+=data
         
 def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
     """ returns brailled string of lyrics from fasola file filename using louistable, separates title and lyrics"""
-    text = Fasolaparser(filename)
+    with open( filename, 'r') as f:
+        lyString = f.read()
+        
     verses = text.lyrics.replace('\r', '').split('\n\n')
     title = louis.translateString( [louistable],  text.title.lower().strip())+'\n'
     lyrics=''
