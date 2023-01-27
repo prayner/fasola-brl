@@ -226,7 +226,7 @@ def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32, sloppyname=
             copynumber = number+extension
             if os.access( lyricsdir+copynumber, os.F_OK): break # found one that works
     title, lyrics = braillewords( lyricsdir+copynumber, louistable=louistable, width=width)
-    result = title 
+    result = title[:-1]
     # now we need to play the same game with the music
     copynumber = number
     if not os.access(musicdir+'/'+copynumber+'.xml', os.F_OK):
@@ -237,7 +237,9 @@ def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32, sloppyname=
             if os.access( musicdir+'/'+copynumber+'.xml', os.F_OK): break # found one that works
     
     musicFile = musicdir+'/'+copynumber+'.xml'
-    try: key=music21.converter.parse( musicFile).analyze('key')
+    try:
+        key=music21.converter.parse( musicFile).analyze('key')
+        result +=' '+str(key)+'\n'
     except music21.converter.ConverterException:
         print ('braillesong, problem with music for ',number)
         return result+lyrics
