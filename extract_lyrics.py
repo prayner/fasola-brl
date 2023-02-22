@@ -1,3 +1,5 @@
+
+import re
 import ly.document
 import ly.music
 def lyFindAssignmentByName( musicList, name, depth=1):
@@ -7,10 +9,14 @@ def lyFindAssignmentByName( musicList, name, depth=1):
     return [i for i in musicList.find_children( ly.music.items.Assignment) if str.__repr__( i.name()) == quotedName]
 
 def lyFilterComponents( componentList, filterList):
-    """ take a list of ly components and select the values of those whose names are in filterList"""
+    """ take a list of ly components and select the values of those that match   any regexp in filterList"""
+    assert len( filterList) > 0
+    # first make single regexp from filterList
+    joined = '|'.join( filterList)
+    regexp = r'('+joined+r')'
     result = []
     for i in componentList:
-        if i.name() in filterList: result.append(i.value())
+        if re.search( regexp, str(i.name())): result.append(i.value())
     return result
 
 def lyLyricsFromLyricMode( node):
