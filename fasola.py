@@ -1,7 +1,7 @@
 lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/site/www.fasola.org/indexes/1991/index.html?p='
 musicdir='xml'
 # some things to do with braille printers
-linewidth = 32
+linewidth = 33
 # hardcoded path to liblouis directory, only used if needed
 LOUISDIR = "/usr/lib/python3/dist-packages"
 import os
