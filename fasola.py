@@ -25,7 +25,13 @@ import ly.music
 from fractions import Fraction
 import glob
 
-knownStructures = ['oneVerse','multiVerse'] # strings representing possible structures in SH
+lyricFunctions = {} # populated by decorator
+def registerLyricFunction(tag):
+    def _(f):
+        lyricFunctions[tag] = f
+        return f
+    return _
+
 def lyFindAssignmentByName( musicList, name, depth=1):
     r""" find the assignment in the music list with name name and return it, will return multiple if they exist, level of search depth set by depth argument"""
     # note names are bracketed by "'" for some reason
@@ -93,6 +99,9 @@ def lyLyricStructure( fileName):
         else: structure = 'nowords'
         return structure
     
+def lyTitle( fileName):
+    """ get title from fileName, here just massaging the name itself, """
+    return os.path.basename( fileName)[:-3] # stripping off .ly extension
 
 def lyLyrics( fileName):
     """ extract lyrics from lilypond score used in the SH form at least ... very heuristic in parts.
@@ -103,6 +112,7 @@ def lyLyrics( fileName):
     else:
         return lyricFunctions[ structure]( fileName) # dictionary lookup of function
 
+@registerLyricFunction('verses')
 def lyLyricVerses( fileName):
     """ return a string containing the lyrics from a verse-structured song in SH"""
     with open( fileName, 'r') as f:
@@ -114,19 +124,13 @@ def lyLyricVerses( fileName):
         scoreComponents = [i for i in lyScore.find_children(ly.music.items.UserCommand)]
         verses=  lyFilterComponents( scoreComponents, ['verse'])
         for v in verses:
-            result += '  '+lyricsFromLyricMode( v)+'\n'
+            result += '  '+lyLyricsFromLyricMode( v)+'\n'
     return result
 
-    
-
-        
 def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
     """ returns brailled string of lyrics from fasola file filename using louistable, separates title and lyrics"""
-    with open( filename, 'r') as f:
-        lyString = f.read()
-        
-    verses = text.lyrics.replace('\r', '').split('\n\n')
-    title = louis.translateString( [louistable],  text.title.lower().strip())+'\n'
+    lyricString = lyLyrics( fileName)
+    title = louis.translateString( [louistable],  lyTitle( filename).lower().strip())+'\n'
     lyrics=''
     for verse in verses: # verse 0 is often empty but we'll deal with that later
         lyrics += '  ' # two indented spaces to start verse
