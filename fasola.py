@@ -127,17 +127,12 @@ def lyLyricVerses( fileName):
             result += '  '+lyLyricsFromLyricMode( v)+'\n'
     return result
 
-def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
+def braillewords( fileName, louistable="en-GB-g2.ctb", width=32):
     """ returns brailled string of lyrics from fasola file filename using louistable, separates title and lyrics"""
+    title = louis.translateString( [louistable],  lyTitle( fileName).lower().strip())+'\n'
     lyricString = lyLyrics( fileName)
-    title = louis.translateString( [louistable],  lyTitle( filename).lower().strip())+'\n'
-    lyrics=''
-    for verse in verses: # verse 0 is often empty but we'll deal with that later
-        lyrics += '  ' # two indented spaces to start verse
-        lines = [l for l in verse.split('\n') if len(l.strip())]
-        for line in lines:
-            linestring = louis.translateString( [louistable],  line.lower().strip())
-            lyrics += textwrap.fill( linestring, width=width)+'\n'
+    lyrics= louis.translateString( [louistable],  lyricString.lower().strip())
+    lyrics = textwrap.fill( lyrics, width=width)+'\n'
     return title, lyrics
 
 
