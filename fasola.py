@@ -137,8 +137,14 @@ def braillewords( fileName, louistable="en-GB-g2.ctb", width=32):
     """ returns brailled string of lyrics from lilypond file filename using louistable, separates title and lyrics"""
     title = louis.translateString( [louistable],  lyTitle( fileName).lower().strip())+'\n'
     lyricString = lyLyrics( fileName)
-    lyrics= louis.translateString( [louistable],  lyricString.lower().strip())
-    lyrics = textwrap.fill( lyrics, width=width)+'\n'
+    verses = lyricString.replace('\r', '').split('\n\n')
+    lyrics=''
+    for verse in verses: # verse 0 is often empty but we'll deal with that later
+        lyrics += '  ' # two indented spaces to start verse
+        lines = [l for l in verse.split('\n') if len(l.strip())]
+        for line in lines:
+            linestring = louis.translateString( [louistable],  line.lower().strip())
+            lyrics += textwrap.fill( linestring, width=width)+'\n'
     return title, lyrics
 
 
