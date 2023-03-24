@@ -218,17 +218,25 @@ def note2symbol(note, key):
     except KeyError: return unknown, octaveInKey( note, key)
 
 def brailleTimeSignature( sig): return brlP(3456)+sig.ratioString+' '
-        
+       
 
-
-def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
-    """ returns a string of symbols for the shapes in the bar
-    The current plan is that each note is a symbol and optionally followed by a dot.
-    If the note moves outside the octave it is preceded by symbols meaning up or down
-    showSplits determines whether chords are listed in full or just the top note"""
+def braille_shapenote_part( part, key=None):
+    """ returns string which is transcription of part. first braille it then wordwrap each line separately """
+    unfilled =u''
+    line = u''
     result = u''
-    if len(bar.getElementsByClass('SystemLayout')) > 0: result +='\n' # new line in print so newline in braille
-    for e in bar:
+    if key is None: key = part.analyze('key')
+    barLength = (part.timeSignature.quarterLengthToBeatLengthRatio) *(part.timeSignature.numerator) # crotchets to a bar
+    # find starting beat, assumes piece finishes at end of bar
+    extraBeats = part.duration.quarterLength % barLength
+    if extraBeats == 0:
+        currentBeat = 0
+    else:
+        currentBeat = barLength - extraBeats
+    currentBar = 0
+    
+    oldOctave = None # records group of last note in bar, really state for printing up/down at start of next bar
+    for e in part:
         if isinstance(e, music21.bar.Repeat):
             if e.direction == 'start': result+=brlP(238)+brlP(3678)
             elif e.direction == 'end': result += brlP(3678)+brlP(567)
@@ -265,24 +273,13 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
             result += symbol
             if (e.duration.quarterLength not in known_durations) & (e.duration.quarterLength > 0.5): result +=  dot # not very precise but gives warning it's nonstandard length
             if octave is not None: oldOctave = octave
-    return result, oldOctave # simply concatenate 
-
-
-        
-
-def braille_shapenote_part( part, key=None):
-    """ returns string which is transcription of part. first braille it then wordwrap each line separately """
-    unfilled =u''
-    line = u''
-    measures = part.recurse().getElementsByClass('Measure')
-    if key is None: key = part.analyze('key')
-    lastOctave = None # records group of last note in bar, really state for printing up/down at start of next bar
-    for measure in measures:
-        bar, lastOctave = braille_shapenote_bar( measure, key, oldOctave=lastOctave)
-        unfilled += bar + ' '
+        # now deal with spaces for ends of bars, have to calculate this since it's lost in Midi files
+        currentBeat += e.duration.quarterLength
+        if currentBeat // barLength > currentBar: result += ' ' # space between bars
+        currentBar = currentBeat // barLength # update it
     linelist = []
-    for line in unfilled.split('\n'): linelist.append(textwrap.fill( line, width=32)+'\n')
-    return ''.join(linelist)
+    for line in result.split('\n'): linelist.append(textwrap.fill( line, width=32)+'\n')
+    return linelist
 
 
 def braille_extract_part( filename, partname, foldcase=False):
