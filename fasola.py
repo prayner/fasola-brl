@@ -1,5 +1,6 @@
 lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/shenandoah-harmony/WholeBook/Lilypond files/'
 musicdir='/home/unimelb.edu.au/prayner/nonwork/fasola/shenandoah-harmony/WholeBook/MIDI files'
+nameList= ['Jesus', 'Christ']
 # some things to do with braille printers
 linewidth = 32
 # hardcoded path to liblouis directory, only used if needed
@@ -61,7 +62,12 @@ def lyLyricsFromLyricMode( node):
     lastWasText = False # flag to check on inserting spaces, should not happen after melismas
     for i in lyricList:
         if isinstance( i, ly.music.items.LyricText):
-            if lastWasText: result+=' '
+            if lastWasText:
+                # heuristic for adding new lines, word is capitalised and not in nameList
+                if str(i.token)[0].isupper() and (str(i.token) not in nameList):
+                    result +='\n'
+                else:
+                    result+=' '
             result += str(i.token)
             lastWasText = True
         elif isinstance( i, ly.music.items.LyricItem):
@@ -128,7 +134,7 @@ def lyLyricVerses( fileName):
     return result
 
 def braillewords( fileName, louistable="en-GB-g2.ctb", width=32):
-    """ returns brailled string of lyrics from fasola file filename using louistable, separates title and lyrics"""
+    """ returns brailled string of lyrics from lilypond file filename using louistable, separates title and lyrics"""
     title = louis.translateString( [louistable],  lyTitle( fileName).lower().strip())+'\n'
     lyricString = lyLyrics( fileName)
     lyrics= louis.translateString( [louistable],  lyricString.lower().strip())
