@@ -54,6 +54,7 @@ def lyFilterComponents( componentList, filterList):
 def lyLyricsFromLyricMode( node):
     """ extract lyrics from a LyricMode object and return as a string"""
     assert isinstance( node, ly.music.items.LyricMode)
+    if node.length() == 0: return r''
     result = r''
     lyricList = [i for i in node.find_children((ly.music.items.LyricText, ly.music.items.LyricItem))]
     # remove skips from the start if present
@@ -221,7 +222,7 @@ def note2symbol(note, key):
 def brailleTimeSignature( sig): return brlP(3456)+sig.ratioString+' '
        
 
-def braille_shapenote_part( part, key=None):
+def braille_shapenote_part( part, key=None, showSplits=None):
     """ returns string which is transcription of part. first braille it then wordwrap each line separately """
     unfilled =u''
     line = u''
