@@ -1,5 +1,6 @@
 lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/shenandoah-harmony/WholeBook/Lilypond files/'
 musicdir='/home/unimelb.edu.au/prayner/nonwork/fasola/shenandoah-harmony/WholeBook/MIDI files'
+brailledir = '/home/unimelb.edu.au/prayner/nonwork/fasola/shenandoah-harmony/braille/'
 nameList= ['Jesus', 'Christ']
 # some things to do with braille printers
 linewidth = 32
@@ -279,45 +280,36 @@ def braille_shapenote_part( part, key=None):
         currentBar = currentBeat // barLength # update it
     linelist = []
     for line in result.split('\n'): linelist.append(textwrap.fill( line, width=32)+'\n')
-    return linelist
+    return '\n'.join(linelist)
 
 
 def braille_extract_part( filename, partname, foldcase=False):
-    """ extracts a part with name partname from a musicxml file filename,
-    if foldcase is True the name match is case insensitive"""
+    """ extracts a part with name partname from a Midi file filename,
+    if foldcase is True the name match is case insensitive,
+    necessarily heuristic here since parts in Midi files numbered but not named"""
+    partNames = ['treble','alto','tenor','bass']
     try: piece = music21.converter.parse( filename)
     except: raise IndexError
     if foldcase: copyname = partname.lower()
     else: copyname = partname
-    try: return piece.parts[ copyname]
+    index = partNames.index( copyname)
+    offset = len( piece) - len( partNames) # deals with pieces with < 4 parts
+    try: return piece[ index+offset]
     except KeyError:
         print ('braille_extract_part, cannot find part named ',partname)
         return None
 
-def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32, sloppyname=True):
-    """ produces string with lyrics and selected parts.
-    If sloppyname is True it will sniff for extensions to the filename"""
-    # now some strange naming conventions mean we have to sniff about a bit here
-    copynumber = number
-    if not os.access( lyricsdir+number, os.F_OK):
-        if not sloppyname: raise IOError
-        possible_extensions = ['t','a','ta'] # possible additions to name from most to least preferred order
-        for extension in possible_extensions:
-            copynumber = number+extension
-            if os.access( lyricsdir+copynumber, os.F_OK): break # found one that works
-    title, lyrics = braillewords( lyricsdir+copynumber, louistable=louistable, width=width)
+def braillesong( fileName, parts, louistable='en-GB-g2.ctb', width=32, sloppyname=True):
+    """ produces string with lyrics and selected parts."""
+
+    title, lyrics = braillewords( fileName, louistable=louistable, width=width)
     result = title 
-    # now we need to play the same game with the music
-    copynumber = number
-    if not os.access(musicdir+'/'+copynumber+'.xml', os.F_OK):
-        if not sloppyname: raise IOError
-        possible_extensions = ['t','a','ta'] # possible additions to name from most to least preferred order
-        for extension in possible_extensions:
-            copynumber = number+extension
-            if os.access( musicdir+'/'+copynumber+'.xml', os.F_OK): break # found one that works
-    
-    musicFile = musicdir+'/'+copynumber+'.xml'
-    try: key=music21.converter.parse( musicFile).analyze('key')
+    # get music file name
+    baseName = lyTitle( fileName)
+    musicFile = musicdir+'/'+baseName+'.midi'
+    try:
+        key=music21.converter.parse( musicFile).analyze('key')
+        result +=str(key)+'\n'
     except music21.converter.ConverterException:
         print ('braillesong, problem with music for ',number)
         return result+lyrics
@@ -357,6 +349,7 @@ def extract_numbers( filename):
     return [w for w in words if re.search('\d', w)]
 from glob import glob
 def brailleAll(indir, outdir):
-    files = glob(indir+'*')
+    files = [f for f in glob(indir+'*.ly') if lyLyricStructure( f) == 'verses']
     for f in files:
-        braillelist([f.replace(indir,'')],['bass'],device=outdir+'/'+f.replace(indir,''))
+        baseName=os.path.basename( f)
+        braillelist([f], ['bass'], device=outdir+'/'+baseName)
