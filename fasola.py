@@ -78,6 +78,18 @@ def lyLyricsFromLyricMode( node):
     result += '\n'
     return result
 
+
+def lyLyricsFromRelative( node):
+    """ extract lyrics from a Relative object and return as a string.
+    Lyrics will only occur in Markup objects"""
+    assert isinstance( node, ly.music.items.Relative)
+    if node.length() == 0: return r''
+    result = r''
+    markupList = [i for i in node.find_children(ly.music.items.Markup)]
+    for i in markupList:
+        result += re.sub('\s+', ' ', i.plaintext()).strip()+'\n'
+    return result
+
 def lyAbsoluteTiming( l):
     """ creates a list where every object is associated with its absolute timing, should work for any iterator provided every ielded object has a length method
     returns list of tuples (object, absolutetiming)"""
@@ -134,6 +146,22 @@ def lyLyricVerses( fileName):
         for v in verses:
             result += '  '+lyLyricsFromLyricMode( v)+'\n'
     return result
+
+@registerLyricFunction('nowords')
+def lyLyricNowords( fileName):
+    """ return a string containing the lyrics from a nowords-structured song in SH"""
+    with open( fileName, 'r') as f:
+        result = ''
+        text=f.read()
+        lyDocument=ly.document.Document( text)
+        lyMusic=ly.music.document( lyDocument)
+        lyScore = [i for i in lyMusic.find_children(ly.music.items.Score, depth=1)][0] # messy wasy of extracting object from generator 
+        scoreComponents = [i for i in lyScore.find_children(ly.music.items.UserCommand)]
+        verses=  lyFilterComponents( scoreComponents, ['Music'])
+        for v in verses:
+            result += '  '+lyLyricsFromRelative( v)
+    return result+'\n'
+
 
 def braillewords( fileName, louistable="en-GB-g2.ctb", width=32):
     """ returns brailled string of lyrics from lilypond file filename using louistable, separates title and lyrics"""
