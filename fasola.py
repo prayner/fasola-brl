@@ -82,7 +82,7 @@ def lyLyricsFromLyricMode( node):
 def lyLyricsFromRelative( node):
     """ extract lyrics from a Relative object and return as a string.
     Lyrics will only occur in Markup objects"""
-    assert isinstance( node, ly.music.items.Relative)
+    assert isinstance( node, (ly.music.items.Relative, ly.music.items.Transpose))
     if node.length() == 0: return r''
     result = r''
     markupList = [i for i in node.find_children(ly.music.items.Markup)]
@@ -358,7 +358,6 @@ def braillelist( numbers, parts, device='/dev/usb/lp0'):
     """ brailles shapenote numbers from list"""
     f=codecs.open(device, 'w',encoding='utf-8')
     for number in numbers:
-        print (number)
         try:
             song =  braillesong( number, parts)
             f.write( song)
@@ -378,7 +377,16 @@ def extract_numbers( filename):
     return [w for w in words if re.search('\d', w)]
 from glob import glob
 def brailleAll(indir, outdir):
-    files = [f for f in glob(indir+'*.ly') if lyLyricStructure( f) == 'verses']
+    files = [f for f in glob(indir+'*.ly') if lyLyricStructure( f) in ['verses','nowords']]
     for f in files:
         baseName=os.path.basename( f)
         braillelist([f], ['bass'], device=outdir+'/'+baseName)
+
+def countParts( fileName):
+    """ returns number of parts in a file music21 can read
+            returns None if file not parsable"""
+    try:
+        piece = music21.converter.parse( fileName)
+        return len(piece)
+    except:
+        return None
