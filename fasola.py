@@ -281,4 +281,4 @@ from glob import glob
 def brailleAll(indir, outdir):
     files = glob(indir+'*')
     for f in files:
-        braillelist([f.replace(indir,'')],['bass'],device=outdir+'/'+f.replace(indir,''))
+        braillelist([f.replace(indir,'')],['bass','tenor'],device=outdir+'/'+f.replace(indir,''))
