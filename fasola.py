@@ -1,4 +1,4 @@
-lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/site/www.fasola.org/indexes/1991/index.html?p='
+lyricsdir='/home/peter/nonwork/fasola/site/www.fasola.org/indexes/1991/index.html?p='
 musicdir='xml'
 # some things to do with braille printers
 linewidth = 32
@@ -50,7 +50,7 @@ class Fasolaparser( HTMLParser):
         if self.inlyrics: self.lyrics+=data
         if self.intitle: self.title+=data
         
-def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
+def braillewords( filename, louistable="en-GB-g2.ctb", width=32, musicString=None):
     """ returns brailled string of lyrics from fasola file filename using louistable, separates title and lyrics"""
     text = Fasolaparser(filename)
     verses = text.lyrics.replace('\r', '').split('\n\n')
@@ -62,6 +62,8 @@ def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
         for line in lines:
             linestring = louis.translateString( [louistable],  line.lower().strip())
             lyrics += textwrap.fill( linestring, width=width)+'\n'
+        if musicString is not None:
+            lyrics += musicString
     return title, lyrics
 
 
@@ -250,7 +252,10 @@ def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32, sloppyname=
             print ('braillesong, problem with',number)
             continue
         result += partstring
-    result += lyrics
+    short_partstring = braille_shapenote_part( braille_extract_part( musicFile, parts[0], foldcase=True), key=key)
+    title, lyrics2 = braillewords( lyricsdir+copynumber, louistable=louistable, width=width, musicString=short_partstring)
+
+    result += lyrics2
     result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
 
@@ -281,4 +286,4 @@ from glob import glob
 def brailleAll(indir, outdir):
     files = glob(indir+'*')
     for f in files:
-        braillelist([f.replace(indir,'')],['bass','tenor'],device=outdir+'/'+f.replace(indir,''))
+        braillelist([f.replace(indir,'')],['bass'],device=outdir+'/'+f.replace(indir,''))
