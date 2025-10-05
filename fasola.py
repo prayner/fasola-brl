@@ -1,14 +1,14 @@
-lyricsdir='/home/unimelb.edu.au/prayner/nonwork/fasola/site/www.fasola.org/indexes/1991/index.html?p='
+lyricsdir="2025-edition/lyrics/"
 musicdir='xml'
 # some things to do with braille printers
 linewidth = 32
 # hardcoded path to liblouis directory, only used if needed
 LOUISDIR = "/usr/lib/python3/dist-packages"
 import os
+from glob import glob
 import music21
 import unicodedata
 import codecs
-from html.parser import HTMLParser
 # cannot install louis from conda, hack to get it from system package
 try:
     import louis
@@ -21,45 +21,16 @@ import textwrap
 
 
 
-class Fasolaparser( HTMLParser):
-    """ subclass for handling the html from fasola.org"""
-    def __init__( self, filename):
-        """ initialize the parser and get the file contents into a string"""
-        HTMLParser.__init__(self)
-        f = open(filename, 'r')
-        self.content = f.read()
-        f.close()
-        self.title=''
-        self.intitle = False
-        self.lyrics=''
-        self.inlyrics = False
-        self.lyricsanchor = False
-        self.feed(self.content)
 
-    def handle_starttag(self, tag, attrs):
-        """really just turning on tags for the handle_data"""
-        if (tag == 'div') and (attrs[0][1] == 'lyrics'): self.inlyrics = True
-        if (tag == 'br') and self.inlyrics: self.lyrics += ''
-        if tag == 'h2': self.intitle = True
-    def handle_endtag( self, tag):
-        """ just unsets some booleans"""
-        if tag == 'div': self.inlyrics = False
-        if tag == 'h2': self.intitle = False
-    def handle_data( self, data):
-        """ adds data to required fields, something tells me I should generalize this"""
-        if self.inlyrics: self.lyrics+=data
-        if self.intitle: self.title+=data
-        
 def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
     """ returns brailled string of lyrics from fasola file filename using louistable, separates title and lyrics"""
-    text = Fasolaparser(filename)
-    verses = text.lyrics.replace('\r', '').split('\n\n')
-    title = louis.translateString( [louistable],  text.title.lower().strip())+'\n'
-    lyrics=''
-    for verse in verses: # verse 0 is often empty but we'll deal with that later
-        lyrics += '  ' # two indented spaces to start verse
-        lines = [l for l in verse.split('\n') if len(l.strip())]
-        for line in lines:
+    with open(filename) as f:
+        in_title = f.readline()
+        in_title = in_title[2:] # strip off comment
+        title = louis.translateString( [louistable],  in_title.lower().strip())
+        _ =f.readline() # empty line
+        lyrics = ''
+        for line in f.readlines():
             linestring = louis.translateString( [louistable],  line.lower().strip())
             lyrics += textwrap.fill( linestring, width=width)+'\n'
     return title, lyrics
@@ -277,8 +248,20 @@ def extract_numbers( filename):
     words = re.sub('[.,;]', ' ', f.read()).lower().split()
     f.close()
     return [w for w in words if re.search('\d', w)]
-from glob import glob
-def brailleAll(indir, outdir):
-    files = glob(indir+'*')
-    for f in files:
-        braillelist([f.replace(indir,'')],['bass','tenor'],device=outdir+'/'+f.replace(indir,''))
+
+def brailleAll(indir, outdir, louistable="en-GB-g2.ctb",):
+    infiles = glob(indir+'*.txt')
+    for infile in infiles:
+        title, lyrics = braillewords( infile)
+        outname = os.path.basename(infile).replace('.txt','')
+        outfile = outdir + outname
+        with open(outfile,'w') as outf:
+            outf.write(louis.translateString( [louistable],  outname))
+            outf.write(' ')
+            outf.write( title)
+            outf.write('\n')
+            outf.write(lyrics)
+            outf.write('\n')
+            outf.close()
+    return
+
