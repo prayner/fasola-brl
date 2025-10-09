@@ -1,0 +1,64 @@
+
+* A Simple Braille Notation for Shapenote music
+** Background
+Shapenote singing is a traditional form of harmonised religious
+singing. the printed notation features the use of shapes as well as
+position in the stave to indicate pitch. The shape is chosen relative to the tonic
+pitch. Shapes are given names, "Fa", "Sol", "la" and "Mi". Part of the
+performance practice is to sing through the music once using the shape
+names and then proceed to the words. Performance is not pitched
+absolutely and so the shape names are a reliable guide to the musical
+line.
+
+** Why not use Braille Music
+Braille Music is a rich notation capable of expressing much of the
+semantics of printed notation. It is, necessarily, not very compact.
+It does not use the 8-dot cell now widely available on embossers and
+refreshable braille displays. It also does not naturally convey the shape names of shapenote
+notation. for this reason it seemed expedient to trial a simpler
+notation which did carry this information. My own experience is that
+this has been more convenient to read quickly than standard braille
+music.
+
+** Basic Principles
+The notation borrows from braille music the concept of representing
+the pitch in the top part of the cell and the duration in the bottom.
+We choose symbols which are mnemonic for shape names. The easiest
+would be to use "f", "s", "l" and "m" for the pitch designation but
+this would not distinguish between the "Fa" a 4th above the tonic and
+the "Fa" at the tonic. So we clip the braille characters into the top
+4 dots of the cell (1,2,4,5) for the shape name. Thus the shape names
+are "f", "i", "b" and "c". We add dot 3 to indicate the shape Falls
+into the lower half of the octave or dot 6 for the upper.  Thus the form is closer to a 7-shape notation and indeed
+we would likely use the same notation for 7-shape music. 
+
+** Pitch Representation
+The notation
+is listed in the following table:
+| position | name | dot pattern |
+| 1 | Fa| 1,2,3,4 |
+| 2 | Sol | 2,3,4 |
+| 3 | la | 1,2,3 |
+| 4 | Fa | 1,2,4,6 |
+| 5 | Sol | 12,4,6 |
+| 6 | la | 1,2,6 |
+| 7 | Mi | 1,4,6 |
+| rest |     | 1,2,4,5 |
+
+** Duration Notation
+We follow braille music in using the two bottom dots (7,8) for
+duration as follows:
+| duration| dot pattern |
+| eighth note | empty |
+| quarter note | 7 |
+| half note | 8 |
+| whole note | 7,8 |
+Like braille music we add dot 3 in the following cell to indicate a
+dotted note.
+
+** Octave Changes
+Octave change notation is used to indicate when the preceding and
+following notes are in different octaves defined by the tonic. 
+| change | dot pattern |
+| up | 4,5 |
+| down | 6,8 |
