@@ -163,7 +163,7 @@ def braille_shapenote_part( part, key=None):
     unfilled =u''
     line = u''
     measures = part.recurse().getElementsByClass('Measure')
-    if key is None: key = part.analyze('key')
+    if key is None: key = list(part.recurse(classFilter=('Key')))[0]
     lastOctave = None # records group of last note in bar, really state for printing up/down at start of next bar
     for measure in measures:
         bar, lastOctave = braille_shapenote_bar( measure, key, oldOctave=lastOctave)
