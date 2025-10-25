@@ -62,3 +62,12 @@ following notes are in different octaves defined by the tonic.
 | change | dot pattern |
 | up | 4,5 |
 | down | 6,8 |
+
+** Repeats
+We use a two-cell representation for beginning and end of repeated
+section. the form is based on braille music but we take advantage of
+the 8-dot cell
+| purpose      | pattern       |
+|--------------+---------------|
+| start repeat | 2,3,8 3,6,7,8 |
+| end repeat | 3,6,7,8 5,6,7 |
