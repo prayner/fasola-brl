@@ -1,4 +1,7 @@
-lyricsdir="2025-edition/lyrics/"
+lyricsroot = "2025-edition/"
+lyricsdir=lyricsroot+"lyrics/"
+lyricsmeta = lyricsroot+"metadata/"
+titlefile = lyricsmeta+"song_titles.tsv"
 musicdir='xml'
 # some things to do with braille printers
 linewidth = 32
@@ -20,7 +23,17 @@ except ImportError:
 import textwrap 
 
 
-
+def get_file2number( infile):
+    """ creates dictionaries mapping file names to titles and vice versa """
+    with open(infile,'r') as f:
+        file2number={}
+        number2file = {}
+        f.readline()
+        for line in f.readlines():
+            keys = line.split("\t")
+            number2file[keys[0]] = keys[1]
+            file2number[keys[1]] = keys[0]
+    return file2number,number2file
 
 def braillewords( filename, louistable="en-GB-g2.ctb", width=32):
     """ returns brailled string of lyrics from fasola file filename using louistable, separates title and lyrics"""
@@ -250,13 +263,15 @@ def extract_numbers( filename):
     return [w for w in words if re.search('\d', w)]
 
 def brailleAll(indir, outdir, louistable="en-GB-g2.ctb",):
-    infiles = glob(indir+'*.txt')
-    for infile in infiles:
-        title, lyrics = braillewords( infile)
-        outname = os.path.basename(infile).replace('.txt','')
-        outfile = outdir + outname
+    file2number,_ = get_file2number( titlefile)
+    for infile in file2number.keys():
+        inpath = lyricsdir+infile+'.txt'
+        title, lyrics = braillewords( inpath)
+#        outname = os.path.basename(infile).replace('.txt','')
+        outfile = outdir + file2number[infile]
+        
         with open(outfile,'w') as outf:
-            outf.write(louis.translateString( [louistable],  outname))
+            outf.write(louis.translateString( [louistable],  file2number[infile]))
             outf.write(' ')
             outf.write( title)
             outf.write('\n')
