@@ -2,13 +2,13 @@ lyricsroot = "2025-edition/"
 lyricsdir=lyricsroot+"lyrics/"
 lyricsmeta = lyricsroot+"metadata/"
 titlefile = lyricsmeta+"song_titles.tsv"
-musicdir='xml'
+musicdir='/home/peter/nonwork/fasola/2025-music/MusicXML - Sacred Harp 2025/MusicXML - Sacred Harp 2025'
 # some things to do with braille printers
 linewidth = 32
 # hardcoded path to liblouis directory, only used if needed
 LOUISDIR = "/usr/lib/python3/dist-packages"
 import os
-from glob import glob
+import glob
 import music21
 import unicodedata
 import codecs
@@ -22,8 +22,24 @@ except ImportError:
     sys.path.remove( LOUISDIR)
 import textwrap 
 
+def get_musicfile2number( musicdir):
+    """ returns dictionary mapping canonical song numbers (using decimal
+        point notation) to music file paths"""
+    number2file = {}
+    if musicdir.endswith("/"):
+        musicpath = musicdir
+    else:
+        musicpath = musicdir+"/"
+    allfiles = glob.glob(musicpath + "*musicxml")
+    for f in allfiles:
+        filename = os.path.basename(f)
+        song_number = filename.split("-")[0]
+        song_number = song_number.lstrip("0") 
+        number2file[song_number] = f
+    return number2file
 
-def get_file2number( infile):
+
+def get_lyricsfile2number( infile):
     """ creates dictionaries mapping file names to titles and vice versa """
     with open(infile,'r') as f:
         file2number={}
