@@ -144,7 +144,11 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
     If the note moves outside the octave it is preceded by symbols meaning up or down
     showSplits determines whether chords are listed in full or just the top note"""
     result = u''
-    if len(bar.getElementsByClass('SystemLayout')) > 0: result +='\n' # new line in print so newline in braille
+    # first check if it's a new system whereupon we need a new line
+    layouts = bar.recurse().getElementsByClass('layout.PageLayout')
+    if len(layouts) > 0:
+        if layouts[0].isNew:
+            result += '\n'
     for e in bar:
         if isinstance(e, music21.bar.Repeat):
             if e.direction == 'start': result+=brlP(238)+brlP(3678)
