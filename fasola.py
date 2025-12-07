@@ -196,12 +196,14 @@ def braille_shapenote_part( part, key=None):
     unfilled =u''
     line = u''
     measures = part.recurse().getElementsByClass('Measure')
-    if key is None: key = list(part.recurse(classFilter=('Key')))[0]
+    if key is None: key = part.analyze('key')
+    unfilled += str(key)+'\n'
     lastOctave = None # records group of last note in bar, really state for printing up/down at start of next bar
     for measure in measures:
         bar, lastOctave = braille_shapenote_bar( measure, key, oldOctave=lastOctave)
         unfilled += bar + ' '
     linelist = []
+    
     for line in unfilled.split('\n'): linelist.append(textwrap.fill( line, width=32)+'\n')
     return ''.join(linelist)
 
@@ -215,44 +217,41 @@ def braille_extract_part( filename, partname, foldcase=False):
     else: copyname = partname
     try: return piece.parts[ copyname]
     except KeyError:
-        print ('braille_extract_part, cannot find part named ',partname)
-        return None
+        # create fallback dictionary depending on number of parts and try it by number
+        if len(piece.parts) == 4:
+            fallback_dict = {'treble':0, 'alto':1, 'tenor':2, 'bass':3}
+        else:
+            fallback_dict = {'treble':0, 'tenor':1, 'bass':2}
+        part_number = fallback_dict[partname.lower()]
+        return piece.parts[part_number]
 
-def braillesong( number, parts, louistable='en-GB-g2.ctb', width=32, sloppyname=True):
-    """ produces string with lyrics and selected parts.
-    If sloppyname is True it will sniff for extensions to the filename"""
-    # now some strange naming conventions mean we have to sniff about a bit here
-    copynumber = number
-    if not os.access( lyricsdir+number, os.F_OK):
-        if not sloppyname: raise IOError
-        possible_extensions = ['t','a','ta'] # possible additions to name from most to least preferred order
-        for extension in possible_extensions:
-            copynumber = number+extension
-            if os.access( lyricsdir+copynumber, os.F_OK): break # found one that works
-    title, lyrics = braillewords( lyricsdir+copynumber, louistable=louistable, width=width)
-    result = title[:-1]
-    # now we need to play the same game with the music
-    copynumber = number
-    if not os.access(musicdir+'/'+copynumber+'.xml', os.F_OK):
-        if not sloppyname: raise IOError
-        possible_extensions = ['t','a','ta'] # possible additions to name from most to least preferred order
-        for extension in possible_extensions:
-            copynumber = number+extension
-            if os.access( musicdir+'/'+copynumber+'.xml', os.F_OK): break # found one that works
-    
-    musicFile = musicdir+'/'+copynumber+'.xml'
-    try:
-        key=music21.converter.parse( musicFile).analyze('key')
-        result +=' '+str(key)+'\n'
-    except music21.converter.ConverterException:
-        print ('braillesong, problem with music for ',number)
-        return result+lyrics
+def key_from_file( music_file):
+    """ there are two ways of getting this and they don't always agree.
+       The musicxml lists every mode as major though it's sharp count is correct.
+       the music21.analyze method occasionally gets it wrong.
+       our heuristic is if they agree we return that.
+       if they don't we take the number of sharps from the read key and mode from the analyzed"""
+    piece = music21.converter.parse( music_file)
+    analyzed_key = piece.analyze('key')
+    read_key = list(piece.recurse().getElementsByClass(music21.key.Key))[0]
+    if read_key == analyzed_key:
+        result = read_key
+    else:
+        if analyzed_key.mode == read_key.mode:
+            print(f"key problem in music file {music_file:s}")
+            result = read_key
+        else:
+            result = read_key.relative
+    return result
+        
+def braillesong( lyrics_file, music_file, parts, louistable='en-GB-g2.ctb', width=32,):
+    """ produces string with lyrics and selected parts."""
+    title, lyrics = braillewords( lyrics_file, louistable=louistable, width=width)
+    result = title
+    key = key_from_file( music_file)
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
-        try: partstring += braille_shapenote_part( braille_extract_part( musicFile, p, foldcase=True), key=key)
-        except IndexError:
-            print ('braillesong, problem with',number)
-            continue
+        partstring += braille_shapenote_part( braille_extract_part( music_file, p, foldcase=True), key=key)
         result += partstring
     result += lyrics
     result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
@@ -282,21 +281,27 @@ def extract_numbers( filename):
     f.close()
     return [w for w in words if re.search('\d', w)]
 
-def brailleAll(indir, outdir, louistable="en-GB-g2.ctb",):
-    file2number,_ = get_file2number( titlefile)
-    for infile in file2number.keys():
-        inpath = lyricsdir+infile+'.txt'
-        title, lyrics = braillewords( inpath)
-#        outname = os.path.basename(infile).replace('.txt','')
-        outfile = outdir + file2number[infile]
-        
-        with open(outfile,'w') as outf:
-            outf.write(louis.translateString( [louistable],  file2number[infile]))
-            outf.write(' ')
-            outf.write( title)
-            outf.write('\n')
-            outf.write(lyrics)
-            outf.write('\n')
-            outf.close()
-    return
+def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir, louistable="en-GB-g2.ctb", bad_numbers=None):
+    if not outdir.endswith('/'):
+        outdir +='/'
+    file2number,_ = get_lyricsfile2number( title_file)
+    if bad_numbers is not None:
+        for b in bad_numbers:
+            file2number.pop(b)
+    number2music_file = get_musicfile2number( musicdir)
+    problems=[]
+    for lyrics_file in file2number.keys():
+        try:
+            lyrics_path = lyrics_dir+lyrics_file+'.txt'
+            title, lyrics = braillewords( lyrics_path)
+            music_path = number2music_file[lyrics_file]
+            outfile = outdir + file2number[lyrics_file]
+            
+            with open(outfile,'w') as outf:
+                outf.write(louis.translateString( [louistable],  file2number[lyrics_file]))
+                outf.write(' ')
+                outf.write( braillesong(lyrics_path, music_path, parts))
+        except:
+            problems.append(lyrics_file)
+    return problems
 
