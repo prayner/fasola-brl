@@ -96,6 +96,7 @@ minorDict = {'veryShort':minorVeryShort, 'short':minorShort, 'long':minorLong, '
 
 symbolDict={'major':majorDict, 'minor':minorDict}
 dot = brlP(3)
+tie = brlP(36)
 unknown = brlP(3456)
 up = brlP(45)
 down = brlP(68)
@@ -178,6 +179,8 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
                 result += symbol
                 if (note.duration.quarterLength not in known_durations) & (note.duration.quarterLength > 0.5): result += dot # not very precise but gives warning it's nonstandard length
                 if octave is not None: oldOctave = octave
+            if e.tie is not None and e.tie != music21.tie.Tie('stop'):
+                result +=tie
         if isinstance(e, (music21.note.Note, music21.note.Rest)):
             symbol, octave = note2symbol( e, key)
             if (oldOctave is not None) and (isinstance(e, music21.note.Note)):
@@ -186,6 +189,8 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
             result += symbol
             if (e.duration.quarterLength not in known_durations) & (e.duration.quarterLength > 0.5): result +=  dot # not very precise but gives warning it's nonstandard length
             if octave is not None: oldOctave = octave
+            if e.tie is not None and e.tie != music21.tie.Tie('stop'):
+                result += tie
     return result, oldOctave # simply concatenate 
 
 
