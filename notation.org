@@ -71,3 +71,11 @@ the 8-dot cell
 |--------------+---------------|
 | start repeat | 2,3,8 3,6,7,8 |
 | end repeat | 3,6,7,8 5,6,7 |
+
+** Ties
+We use the same physical shape as the braille music slur but at the
+level of the duration markings since it is effectively a changed
+duration.
+| purpose | pattern |
+|---------+---------|
+| tie     | 3,6     |
