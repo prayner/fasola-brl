@@ -146,7 +146,7 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
     showSplits determines whether chords are listed in full or just the top note"""
     result = u''
     # first check if it's a new system whereupon we need a new line
-    layouts = bar.recurse().getElementsByClass('layout.PageLayout')
+    layouts = bar.recurse().getElementsByClass('layout.SystemLayout')
     if len(layouts) > 0:
         if layouts[0].isNew:
             result += '\n'
@@ -196,8 +196,22 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
 
         
 
-def braille_shapenote_part( part, key=None):
+def braille_shapenote_part( input_part, key=None, expand_repeats=False):
     """ returns string which is transcription of part. first braille it then wordwrap each line separately """
+    if expand_repeats:
+        part = input_part.expandRepeats()
+        # remove duplicate time signatures if they don't change
+        sigs=list(part.recurse().getElementsByClass(
+            music21.meter.TimeSignature))
+        if len(sigs) > 1:
+            current_sig = sigs[0]
+            for sig in sigs[1:]:
+                if sig == current_sig:
+                    part.remove(sig,recurse=True)
+                current_sig = sig
+    else:
+        part = input_part
+                
     unfilled =u''
     line = u''
     measures = part.recurse().getElementsByClass('Measure')
@@ -206,11 +220,14 @@ def braille_shapenote_part( part, key=None):
     lastOctave = None # records group of last note in bar, really state for printing up/down at start of next bar
     for measure in measures:
         bar, lastOctave = braille_shapenote_bar( measure, key, oldOctave=lastOctave)
-        unfilled += bar + ' '
-    linelist = []
-    
-    for line in unfilled.split('\n'): linelist.append(textwrap.fill( line, width=32)+'\n')
-    return ''.join(linelist)
+        if (measure.number == 0 or measure.number ==1):
+            unfilled += bar
+        else:
+            if bar.startswith('\n'):
+                unfilled += bar
+            else:
+                unfilled += ' '+bar
+    return unfilled
 
 
 def braille_extract_part( filename, partname, foldcase=False):
@@ -256,7 +273,9 @@ def braillesong( lyrics_file, music_file, parts, louistable='en-GB-g2.ctb', widt
     key = key_from_file( music_file)
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
-        partstring += braille_shapenote_part( braille_extract_part( music_file, p, foldcase=True), key=key)
+        partstring += braille_shapenote_part(
+            braille_extract_part( music_file,p,foldcase=True),
+            key=key, expand_repeats=True)
         result += partstring
     result += lyrics
     result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
