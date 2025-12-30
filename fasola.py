@@ -353,4 +353,13 @@ def braille_shapenote_line_by_line( filename, part, expand_repeats=False):
             result += braille_shapenote_system( system, part, verse, key=key, )
     return result
 
-
+def systems_from_piece( piece):
+    result = []
+    layout_stream = piece.recurse().getElementsByClass('layout.SystemLayout')
+    newsystem_measures = [l.measureNumber for l in layout_stream if l.isNew]
+    newsystem_measures = list(set(newsystem_measures)) # unique elements 
+    newsystem_measures.insert(0,0) # assume always new system at beginning
+    for i in range( len(newsystem_measures)-1): # skipped if newsystem only at beginning
+        result.append (piece.measures( newsystem_measures[i], newsystem_measures[i-1]-1))
+    result.append(piece.measures(newsystem_measures[-1], None))
+    return result
