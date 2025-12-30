@@ -329,3 +329,28 @@ def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir, louistable="en-
             problems.append(lyrics_file)
     return problems
 
+def braille_shapenote_line_by_line( filename, part, expand_repeats=False):
+    key = key_from_ile(filename)
+    input_piece = music21.converter.parse(filename)
+    if expand_repeats:
+        piece = input_piece.expandRepeats()
+        # remove duplicate time signatures if they don't change
+        sigs=list(piece.recurse().getElementsByClass(
+            music21.meter.TimeSignature))
+        if len(sigs) > 1:
+            current_sig = sigs[0]
+            for sig in sigs[1:]:
+                if sig == current_sig:
+                    piece.remove(sig,recurse=True)
+                current_sig = sig
+    else:
+        piece = input_piece
+
+    result = u''
+    systems = systems_from_stream( piece)
+    for verse in range(1, count_verses(piece)+1):
+        for system in systems:
+            result += braille_shapenote_system( system, part, verse, key=key, )
+    return result
+
+
