@@ -353,6 +353,15 @@ def braille_shapenote_line_by_line( filename, part, expand_repeats=False):
             result += braille_shapenote_system( system, part, verse, key=key, )
     return result
 
+def count_verses( stream):
+    """ count the number of verses in a stream """
+    notes=stream.flatten().getElementsByClass(music21.note.Note)
+
+    nested_lyrics=[n.lyrics for n in notes]
+    flattened_lyrics = [l for lyrics in nested_lyrics for l in lyrics]
+    numbers = [f.number for f in flattened_lyrics]
+    return max(numbers)
+
 def systems_from_piece( piece):
     result = []
     layout_stream = piece.recurse().getElementsByClass('layout.SystemLayout')
