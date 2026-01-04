@@ -362,6 +362,16 @@ def count_verses( stream):
     numbers = [f.number for f in flattened_lyrics]
     return max(numbers)
 
+def lyrics_by_verse(stream, verse):
+    notes=stream.flatten().getElementsByClass(music21.note.Note)
+    nested_lyrics=[n.lyrics for n in notes]
+    flattened_lyrics = [l for lyrics in nested_lyrics for l in lyrics]
+    if verse is None:
+        result = flattened_lyrics # select everything
+    else:
+        result = [f for f in flattened_lyrics if f.number == verse]
+    return result
+
 def systems_from_piece( piece):
     result = []
     layout_stream = piece.recurse().getElementsByClass('layout.SystemLayout')
