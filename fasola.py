@@ -396,7 +396,7 @@ def preprocess_shapenote_file(infile, outfile, transform_file):
     subprocess.run(command_list)
 
 def systems_from_file( filename, expand_repeats=True):
-    piece = music21.converter.parse( filename)
+    piece = music21.converter.parse( filename, forceSource=True)
     if not expand_repeats:
         piece_copy = piece
     else:
