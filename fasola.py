@@ -2,13 +2,15 @@ lyricsroot = "2025-edition/"
 lyricsdir=lyricsroot+"lyrics/"
 lyricsmeta = lyricsroot+"metadata/"
 titlefile = lyricsmeta+"song_titles.tsv"
-musicdir='/home/peter/nonwork/fasola/2025-music/MusicXML - Sacred Harp 2025/MusicXML - Sacred Harp 2025'
+musicdir='/home/peter/nonwork/fasola/2025-music/MusicXML - Sacred Harp 2025/'
+tmpdir = '/tmp/'
 # some things to do with braille printers
 linewidth = 32
 # hardcoded path to liblouis directory, only used if needed
 LOUISDIR = "/usr/lib/python3/dist-packages"
 import os
 import glob
+import subprocess
 import music21
 import unicodedata
 import codecs
