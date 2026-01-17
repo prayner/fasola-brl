@@ -384,3 +384,13 @@ def systems_from_piece( piece):
         result.append (piece.measures( newsystem_measures[i], newsystem_measures[i-1]-1))
     result.append(piece.measures(newsystem_measures[-1], None))
     return result
+
+def temp_file_name(tmpdir): return tmpdir+'fasola_tmp.musicxml'
+
+def preprocess_shapenote_file(infile, outfile, transform_file):
+    command_list = ['xsltproc', '--novalid']
+    command_list.append('-o')
+    command_list.append(outfile)
+    command_list.append(transform_file)
+    command_list.append(infile)
+    subprocess.run(command_list)
