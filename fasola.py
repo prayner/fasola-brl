@@ -394,3 +394,17 @@ def preprocess_shapenote_file(infile, outfile, transform_file):
     command_list.append(transform_file)
     command_list.append(infile)
     subprocess.run(command_list)
+
+def systems_from_file( filename, expand_repeats=True):
+    piece = music21.converter.parse( filename)
+    if not expand_repeats:
+        piece_copy = piece
+    else:
+        try:
+            parts=[p.expandRepeats() for p in piece.parts]
+            piece_copy = music21.stream.Score()
+            for p in parts:
+                piece_copy.append(p)
+        except:
+            piece_copy = piece # fall back to just copying
+    return systems_from_piece(piece_copy)
