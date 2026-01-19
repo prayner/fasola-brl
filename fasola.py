@@ -408,3 +408,15 @@ def systems_from_file( filename, expand_repeats=True):
         except:
             piece_copy = piece # fall back to just copying
     return systems_from_piece(piece_copy)
+
+def measure_in_part( measure_index, n_measures_in_part):
+    """ measure_index is the string from repeat.Expander.measureMap,
+       may have form like "5" or "5a" for repeats"""
+    try:
+        result = int(measure_index)
+    except ValueError:
+        result = int(measure_index[0:-1])
+    # now deal with bug in repeat.Expander.measureMap for DC etc
+    if result > n_measures_in_part:
+        result -= n_measures_in_part
+    return result
