@@ -409,7 +409,7 @@ def systems_from_file( filename, expand_repeats=True):
             piece_copy = piece # fall back to just copying
     return systems_from_piece(piece_copy)
 
-def measure_in_part( measure_index, n_measures_in_part):
+def find_measure_in_part( measure_index, n_measures_in_part):
     """ measure_index is the string from repeat.Expander.measureMap,
        may have form like "5" or "5a" for repeats"""
     try:
@@ -420,3 +420,22 @@ def measure_in_part( measure_index, n_measures_in_part):
     if result > n_measures_in_part:
         result -= n_measures_in_part
     return result
+
+
+
+def canonicalize_shapenote_piece( piece):
+    """ at the moment only fixing weird measure number in pickup bars """
+    for p in piece.parts:
+        canonicalize_shapenote_part( p)
+
+def canonicalize_shapenote_part(part):
+    """ at the moment only fixing weird measure numbers for partial bars.
+       note it modifies in place"""
+    measures =part.recurse().getElementsByClass(music21.stream.Measure)
+    measure_suffixes = set([m.numberSuffix for m in measures])
+    if measure_suffixes != set([None]): # need to alter numbers and suffixes
+        for i,m in enumerate(measures):
+            if m.numberSuffix is not None:
+                m.number = measures[1].number -1 if i == 0 else \
+                measures[i-1].number +1
+                m.numberSuffix = None
