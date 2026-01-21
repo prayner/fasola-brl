@@ -422,6 +422,22 @@ def find_measure_in_part( measure_index, n_measures_in_part):
     return result
 
 
+def find_lyrics( piece,
+                 part_number,
+                 verse_number,
+                 measure_number,
+                 measure_list=None,
+                 n_measures_in_part=None,
+                ):
+    """ note that measure_number is after repeats have been expanded"""
+    part = piece.parts[part_number]
+    if measure_list is None:
+        measure_list = music21.repeat.Expander(part).measureMap()
+    if n_measures_in_part is None:
+        n_measures_in_part = len(part.measures(1,None))
+    measure_in_part = find_measure_in_part( measure_list[ measure_number],
+                                            n_measures_in_part)
+    # now the fun starts, first see if there are lyrics in the part itself
 
 def canonicalize_shapenote_piece( piece):
     """ at the moment only fixing weird measure number in pickup bars """
