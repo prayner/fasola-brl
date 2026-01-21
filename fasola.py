@@ -199,7 +199,10 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
 def braille_shapenote_part( input_part, key=None, expand_repeats=False):
     """ returns string which is transcription of part. first braille it then wordwrap each line separately """
     if expand_repeats:
-        part = input_part.expandRepeats()
+        try:
+            part = input_part.expandRepeats()
+    else:
+        part = input_part
         # remove duplicate time signatures if they don't change
         sigs=list(part.recurse().getElementsByClass(
             music21.meter.TimeSignature))
@@ -209,7 +212,7 @@ def braille_shapenote_part( input_part, key=None, expand_repeats=False):
                 if sig == current_sig:
                     part.remove(sig,recurse=True)
                 current_sig = sig
-    else:
+    except:
         part = input_part
                 
     unfilled =u''
