@@ -2,7 +2,9 @@ lyricsroot = "2025-edition/"
 lyricsdir=lyricsroot+"lyrics/"
 lyricsmeta = lyricsroot+"metadata/"
 titlefile = lyricsmeta+"song_titles.tsv"
-musicdir='/home/peter/nonwork/fasola/2025-music/MusicXML - Sacred Harp 2025/MusicXML - Sacred Harp 2025'
+musicdir='/home/peter/nonwork/fasola/2025-music/MusicXML - Sacred Harp 2025/'
+tmpdir = '/tmp/'
+
 # some things to do with braille printers
 linewidth = 32
 # hardcoded path to liblouis directory, only used if needed
@@ -12,6 +14,8 @@ import glob
 import music21
 import unicodedata
 import codecs
+import subprocess
+
 # cannot install louis from conda, hack to get it from system package
 try:
     import louis
@@ -201,8 +205,8 @@ def braille_shapenote_part( input_part, key=None, expand_repeats=False):
     if expand_repeats:
         try:
             part = input_part.expandRepeats()
-    else:
-        part = input_part
+        except:
+            part = input_part
         # remove duplicate time signatures if they don't change
         sigs=list(part.recurse().getElementsByClass(
             music21.meter.TimeSignature))
@@ -212,7 +216,7 @@ def braille_shapenote_part( input_part, key=None, expand_repeats=False):
                 if sig == current_sig:
                     part.remove(sig,recurse=True)
                 current_sig = sig
-    except:
+    else:
         part = input_part
                 
     unfilled =u''
@@ -332,3 +336,12 @@ def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir, louistable="en-
             problems.append(lyrics_file)
     return problems
 
+def temp_file_name(tmpdir): return tmpdir+'fasola_tmp.musicxml'
+
+def preprocess_shapenote_file(infile, outfile, transform_file):
+    command_list = ['xsltproc', '--novalid']
+    command_list.append('-o')
+    command_list.append(outfile)
+    command_list.append(transform_file)
+    command_list.append(infile)
+    subprocess.run(command_list)
