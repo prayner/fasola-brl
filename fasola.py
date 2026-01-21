@@ -241,7 +241,7 @@ def braille_shapenote_part( input_part, key=None, expand_repeats=False):
 def braille_extract_part( filename, partname, foldcase=False):
     """ extracts a part with name partname from a musicxml file filename,
     if foldcase is True the name match is case insensitive"""
-    try: piece = music21.converter.parse( filename)
+    try: piece = music21.converter.parse( filename, forceSource=True)
     except: raise IndexError
     if foldcase: copyname = partname.lower()
     else: copyname = partname
@@ -261,7 +261,7 @@ def key_from_file( music_file):
        the music21.analyze method occasionally gets it wrong.
        our heuristic is if they agree we return that.
        if they don't we take the number of sharps from the read key and mode from the analyzed"""
-    piece = music21.converter.parse( music_file)
+    piece = music21.converter.parse( music_file, forceSource=True)
     analyzed_key = piece.analyze('key')
     read_key = list(piece.recurse().getElementsByClass(music21.key.Key))[0]
     if read_key == analyzed_key:
