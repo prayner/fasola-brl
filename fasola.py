@@ -315,7 +315,7 @@ def extract_numbers( filename):
 
 def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir,
                louistable="en-GB-g2.ctb", bad_numbers=None,
-               transform_file='transform.xslt',):
+               transform_file='transform.xslt', debug=False):
     if not outdir.endswith('/'):
         outdir +='/'
     file2number,_ = get_lyricsfile2number( title_file)
@@ -337,8 +337,10 @@ def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir,
                 outf.write(' ')
                 outf.write( braillesong(lyrics_path, tmpfile, parts))
         except:
-            raise
-            problems.append(lyrics_file)
+            if debug:
+                raise
+            else:
+                problems.append(lyrics_file)
     return problems
 
 def temp_file_name(tmpdir): return tmpdir+'fasola_tmp.musicxml'
