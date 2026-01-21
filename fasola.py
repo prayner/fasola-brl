@@ -285,8 +285,9 @@ def braillesong( lyrics_file, music_file, parts, louistable='en-GB-g2.ctb', widt
             braille_extract_part( music_file,p,foldcase=True),
             key=key, expand_repeats=True)
         result += partstring
+        result+='\n\n'
     result += lyrics
-    result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
+    #result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
 
 
