@@ -312,7 +312,8 @@ def extract_numbers( filename):
     f.close()
     return [w for w in words if re.search('\d', w)]
 
-def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir, louistable="en-GB-g2.ctb", bad_numbers=None):
+def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir,
+               louistable="en-GB-g2.ctb", bad_numbers=None, ):
     if not outdir.endswith('/'):
         outdir +='/'
     file2number,_ = get_lyricsfile2number( title_file)
@@ -327,11 +328,12 @@ def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir, louistable="en-
             title, lyrics = braillewords( lyrics_path)
             music_path = number2music_file[lyrics_file]
             outfile = outdir + file2number[lyrics_file]
-            
+            tmpfile = temp_file_name()
+            preprocess_shapenote_file( music_path, tmpfile, transform_file)
             with open(outfile,'w') as outf:
                 outf.write(louis.translateString( [louistable],  file2number[lyrics_file]))
                 outf.write(' ')
-                outf.write( braillesong(lyrics_path, music_path, parts))
+                outf.write( braillesong(lyrics_path, tmpfile, parts))
         except:
             problems.append(lyrics_file)
     return problems
