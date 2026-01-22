@@ -9,6 +9,7 @@ linewidth = 32
 # hardcoded path to liblouis directory, only used if needed
 LOUISDIR = "/usr/lib/python3/dist-packages"
 import os
+import re
 import glob
 import subprocess
 import music21
@@ -356,8 +357,14 @@ def braille_shapenote_line_by_line( filename, part, expand_repeats=False):
     return result
 
 def count_verses( stream):
-    """ count the number of verses in a stream """
-    notes=stream.flatten().getElementsByClass(music21.note.Note)
+    """ count the number of verses in a stream. uses heuristic that a lyric starting with number followed by dot is a verse number """
+    lyric_string = music21.text.assembleAllLyrics( stream)
+    digit_list = re.findall(r'\d', lyric_string)
+    if len(digit_list) == 0:
+        return 1
+    else:
+        return max([int(d) for d in digit_list])
+
 
     nested_lyrics=[n.lyrics for n in notes]
     flattened_lyrics = [l for lyrics in nested_lyrics for l in lyrics]
@@ -428,16 +435,42 @@ def find_lyrics( piece,
                  measure_number,
                  measure_list=None,
                  n_measures_in_part=None,
+                 number_of_verses=None,
                 ):
     """ note that measure_number is after repeats have been expanded"""
+    canonicalize_shapenote_piece(piece)
     part = piece.parts[part_number]
     if measure_list is None:
         measure_list = music21.repeat.Expander(part).measureMap()
     if n_measures_in_part is None:
         n_measures_in_part = len(part.measures(1,None))
+    if number_of_verses is None:
+        number_of_verses = count_verses(piece)
     measure_in_part = find_measure_in_part( measure_list[ measure_number],
                                             n_measures_in_part)
+    found_measure = part.measure(measure_in_part)
+    if contains_only_rests(found_measure):
+        return [] # no lyrics
     # now the fun starts, first see if there are lyrics in the part itself
+    measure_lyrics = found_measure.lyrics()
+    if len(measure_lyrics) > 0: # we have lyrics explicitly for this part
+        return flatten_lyric_text( measure_lyrics[verse_number])
+    else: # we need to look at different parts
+        part_lyric_dict={}
+        key_lyric_dict = 1
+        for i in range(len(piece.parts)):
+            measure_lyrics = piece.parts[i].measure(measure_in_part).lyrics()
+            if len(measure_lyrics) > 0:
+                part_lyric_dict[key_lyric_dict] = measure_lyrics
+                key_lyric_dict += 1
+        if len(part_lyric_dict) == 0:
+            return [] # no lyrics
+        if number_of_verses == 1 or len(part_lyric_dict) == 1: # words attached to only one other part
+            return flatten_lyric_text(part_lyric_dict[1][verse_number])
+
+
+def flatten_lyric_text( lyric_list):
+    return [l.text for l in lyric_list if l is not None]
 
 def canonicalize_shapenote_piece( piece):
     """ at the moment only fixing weird measure number in pickup bars """
@@ -455,3 +488,10 @@ def canonicalize_shapenote_part(part):
                 m.number = measures[1].number -1 if i == 0 else \
                 measures[i-1].number +1
                 m.numberSuffix = None
+
+def contains_only_rests( stream):
+    result = True
+    for n in stream.notesAndRests:
+        if not isinstance(n, music21.note.Rest):
+            result = False
+    return result
