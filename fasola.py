@@ -436,9 +436,12 @@ def find_lyrics( piece,
                  measure_list=None,
                  n_measures_in_part=None,
                  number_of_verses=None,
+                 simple_multi_verse = None,
                 ):
     """ note that measure_number is after repeats have been expanded"""
     canonicalize_shapenote_piece(piece)
+    if simple_multi_verse is None:
+        simple_multi_verse = is_simple_multi_verse(piece)
     part = piece.parts[part_number]
     if measure_list is None:
         measure_list = music21.repeat.Expander(part).measureMap()
@@ -453,20 +456,31 @@ def find_lyrics( piece,
         return [] # no lyrics
     # now the fun starts, first see if there are lyrics in the part itself
     measure_lyrics = found_measure.lyrics()
-    if len(measure_lyrics) > 0: # we have lyrics explicitly for this part
-        return flatten_lyric_text( measure_lyrics[verse_number])
-    else: # we need to look at different parts
+    if simple_multi_verse:
         part_lyric_dict={}
-        key_lyric_dict = 1
+        verse = 1
         for i in range(len(piece.parts)):
             measure_lyrics = piece.parts[i].measure(measure_in_part).lyrics()
             if len(measure_lyrics) > 0:
-                part_lyric_dict[key_lyric_dict] = measure_lyrics
-                key_lyric_dict += 1
-        if len(part_lyric_dict) == 0:
-            return [] # no lyrics
-        if number_of_verses == 1 or len(part_lyric_dict) == 1: # words attached to only one other part
-            return flatten_lyric_text(part_lyric_dict[1][verse_number])
+                part_lyric_dict[verse] = measure_lyrics
+                verse += 1
+        return flatten_lyric_text(part_lyric_dict[verse_number][1])
+    else:
+        
+        if len(measure_lyrics) > 0: # we have lyrics explicitly for this part
+            return flatten_lyric_text( measure_lyrics[verse_number])
+        else: # we need to look at different parts
+            part_lyric_dict={}
+            key_lyric_dict = 1
+            for i in range(len(piece.parts)):
+                measure_lyrics = piece.parts[i].measure(measure_in_part).lyrics()
+                if len(measure_lyrics) > 0:
+                    part_lyric_dict[key_lyric_dict] = measure_lyrics
+                    key_lyric_dict += 1
+            if len(part_lyric_dict) == 0:
+                return [] # no lyrics
+            if number_of_verses == 1 or len(part_lyric_dict) == 1: # words attached to only one other part
+                return flatten_lyric_text(part_lyric_dict[1][verse_number])
 
 
 def flatten_lyric_text( lyric_list):
@@ -493,5 +507,13 @@ def contains_only_rests( stream):
     result = True
     for n in stream.notesAndRests:
         if not isinstance(n, music21.note.Rest):
+            result = False
+    return result
+
+def is_simple_multi_verse( stream):
+    result = True
+    part_lyrics = [music21.text.assembleAllLyrics( p) for p in stream.parts]
+    for part_lyric in part_lyrics:
+        if len(part_lyric) > 0 and re.match('^\d\.', part_lyric) is None:
             result = False
     return result
