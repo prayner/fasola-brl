@@ -479,33 +479,32 @@ def find_lyrics( piece,
     found_measure = part.measure(measure_in_part)
     if contains_only_rests(found_measure):
         return [] # no lyrics
-    # now the fun starts, first see if there are lyrics in the part itself
-    measure_lyrics = found_measure.lyrics()
     if simple_multi_verse:
+        part_has_text =[len(extract_lyrics(p)) > 0 for p in piece.parts]
         part_lyric_dict={}
         verse = 1
         for i in range(len(piece.parts)):
-            measure_lyrics = piece.parts[i].measure(measure_in_part).lyrics()
-            if len(measure_lyrics) > 0:
+            measure_lyrics = extract_lyrics(piece.parts[i].measure(measure_in_part))
+            if part_has_text[i]:
                 part_lyric_dict[verse] = measure_lyrics
                 verse += 1
-        return flatten_lyric_text(part_lyric_dict[verse_number][1])
+        return [part_lyric_dict[verse_number]]
     else:
-        
+        measure_lyrics = extract_lyrics(found_measure)
         if len(measure_lyrics) > 0: # we have lyrics explicitly for this part
-            return flatten_lyric_text( measure_lyrics[verse_number])
+            return measure_lyrics
         else: # we need to look at different parts
             part_lyric_dict={}
             key_lyric_dict = 1
             for i in range(len(piece.parts)):
-                measure_lyrics = piece.parts[i].measure(measure_in_part).lyrics()
+                measure_lyrics = extract_lyrics(piece.parts[i].measure(measure_in_part))
                 if len(measure_lyrics) > 0:
                     part_lyric_dict[key_lyric_dict] = measure_lyrics
                     key_lyric_dict += 1
             if len(part_lyric_dict) == 0:
                 return [] # no lyrics
             if number_of_verses == 1 or len(part_lyric_dict) == 1: # words attached to only one other part
-                return flatten_lyric_text(part_lyric_dict[1][verse_number])
+                return part_lyric_dict[1]
 
 
 def flatten_lyric_text( lyric_list):
