@@ -542,3 +542,16 @@ def is_simple_multi_verse( stream):
         if len(part_lyric) > 0 and re.match('^\d\.', part_lyric) is None:
             result = False
     return result
+
+def extract_lyrics( stream, line_number=1):
+    ''' based on music21.text.assembleLyrics but with some of its perverse intelligence removed'''
+    note_stream = stream.flatten().notesAndRests
+    result = []
+    for n in note_stream:
+        try:
+            lyric = n.lyrics[line_number -1]
+        except IndexError:
+            continue
+        if lyric.text is not None:
+            result.append(lyric.text)
+    return result
