@@ -284,6 +284,31 @@ def braillesong( lyrics_file, music_file, parts, louistable='en-GB-g2.ctb', widt
     result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
 
+def braillesong_line_by_line( lyrics_file, music_file, parts,
+                              louistable='en-GB-g2.ctb',
+                              width=32,
+                              tmp_file='./fasola_tmp.musicxml',
+                              transform_file='transform.xslt',
+                             ):
+    """ produces string with lyrics and selected parts."""
+    title, lyrics = braillewords( lyrics_file, louistable=louistable, width=width)
+    result = title
+    key = key_from_file( music_file)
+    preprocess_shapenote_file(music_file, tmp_file, transform_file)
+    piece = music21.converter.parse(tmp_file,forceSource=True)
+    cononicalize_piece(piece)
+    for p in parts:
+        partstring = '  '+louis.translateString( [louistable], p)+':\n'
+        partstring += braille_shapenote_part(
+            piece[p],
+            key=key, expand_repeats=True)
+        result += partstring
+        result+='\n'
+        
+    result += lyrics
+    result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
+    return result
+
 
 def braillelist( numbers, parts, device='/dev/usb/lp0'):
     """ brailles shapenote numbers from list"""
