@@ -471,7 +471,7 @@ def find_lyrics( piece,
     if measure_list is None:
         measure_list = music21.repeat.Expander(part).measureMap()
     if n_measures_in_part is None:
-        n_measures_in_part = len(part.measures(1,None))
+        n_measures_in_part = len(part.measures(1,None, collect=[], gatherSpanners=False))
     if number_of_verses is None:
         number_of_verses = count_verses(piece)
     measure_in_part = find_measure_in_part( measure_list[ measure_number],
