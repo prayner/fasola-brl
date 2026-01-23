@@ -517,7 +517,7 @@ def canonicalize_shapenote_piece( piece):
         canonicalize_shapenote_part( p)
 
 def canonicalize_shapenote_part(part):
-    """ at the moment only fixing weird measure numbers for partial bars.
+    """fixing weird measure numbers for partial bars and weird final repeat.
        note it modifies in place"""
     measures =part.recurse().getElementsByClass(music21.stream.Measure)
     measure_suffixes = set([m.numberSuffix for m in measures])
@@ -527,6 +527,9 @@ def canonicalize_shapenote_part(part):
                 m.number = measures[1].number -1 if i == 0 else \
                 measures[i-1].number +1
                 m.numberSuffix = None
+    # now delete repeat from final bar if it's there
+    if isinstance(part.measure(-1).elements[0], music21.bar.Repeat):
+        part.measure(-1).remove(part.measure(-1).elements[0])
 
 def contains_only_rests( stream):
     result = True
