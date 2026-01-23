@@ -15,7 +15,7 @@
       <repeat direction="forward"/>
     </barline>
   </xsl:template>
-<xsl:template match="direction[direction-type/other-direction = 'SH repeat dots' or direction-type/other-direction = 'Repeat Dots']">
+<xsl:template match="direction[direction-type/other-direction = 'SH repeat dots' or direction-type/other-direction = 'Repeat Dots' or direction-type/other-direction = 'SH repeat right']">
     <barline location="left">
       <bar-style>heavy-light</bar-style>
       <repeat direction="forward"/>
