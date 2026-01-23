@@ -279,11 +279,15 @@ def braillesong( lyrics_file, music_file, parts, louistable='en-GB-g2.ctb', widt
     title, lyrics = braillewords( lyrics_file, louistable=louistable, width=width)
     result = title
     key = key_from_file( music_file)
+    tmpfile = tmpdir+'fasola_tmp.musicxml'
+    preprocess_shapenote_file(music_file, tmpfile, transform_file)
+    piece = music21.converter.parse( tmpfile, forceSource=True)
+    canonicalize_shapenote_piece( piece)
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
         partstring += braille_shapenote_part(
-            braille_extract_part( music_file,p,foldcase=True),
-            key=key, expand_repeats=False)
+            piece[p],
+            key=key, expand_repeats=True)
         result += partstring
         result+='\n\n'
     result += lyrics
@@ -330,3 +334,22 @@ def preprocess_shapenote_file(infile, outfile, transform_file):
     command_list.append(transform_file)
     command_list.append(infile)
     subprocess.run(command_list)
+def canonicalize_shapenote_piece( piece):
+    """ at the moment only fixing weird measure number in pickup bars """
+    for p in piece.parts:
+        canonicalize_shapenote_part( p)
+
+def canonicalize_shapenote_part(part):
+    """fixing weird measure numbers for partial bars and weird final repeat.
+       note it modifies in place"""
+    measures =part.recurse().getElementsByClass(music21.stream.Measure)
+    measure_suffixes = set([m.numberSuffix for m in measures])
+    if measure_suffixes != set([None]): # need to alter numbers and suffixes
+        for i,m in enumerate(measures):
+            if m.numberSuffix is not None:
+                m.number = measures[1].number -1 if i == 0 else \
+                measures[i-1].number +1
+                m.numberSuffix = None
+    # now delete repeat from final bar if it's there
+    if isinstance(part.measure(-1).elements[0], music21.bar.Repeat):
+        part.measure(-1).remove(part.measure(-1).elements[0])
