@@ -325,31 +325,13 @@ def brailleList(song_list, lyrics_dir, title_file, music_dir, parts, outdir,
 def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir,
                louistable="en-GB-g2.ctb", bad_numbers=None,
                transform_file='transform.xslt', debug=False):
-    if not outdir.endswith('/'):
-        outdir +='/'
     file2number,_ = get_lyricsfile2number( title_file)
     if bad_numbers is not None:
         for b in bad_numbers:
             file2number.pop(b)
-    number2music_file = get_musicfile2number( musicdir)
-    problems=[]
-    for lyrics_file in file2number.keys():
-        try:
-            lyrics_path = lyrics_dir+lyrics_file+'.txt'
-            title, lyrics = braillewords( lyrics_path)
-            music_path = number2music_file[lyrics_file]
-            outfile = outdir + file2number[lyrics_file]
-            tmpfile = temp_file_name('/tmp/')
-            preprocess_shapenote_file( music_path, tmpfile, transform_file)
-            with open(outfile,'w') as outf:
-                outf.write(louis.translateString( [louistable],  file2number[lyrics_file]))
-                outf.write(' ')
-                outf.write( braillesong(lyrics_path, tmpfile, parts))
-        except:
-            if debug:
-                raise
-            else:
-                problems.append(lyrics_file)
+    problems = brailleList(file2number.keys(), lyrics_dir, title_file, music_dir, parts, outdir,
+               louistable=louistable, bad_numbers=bad_numbers,
+                           transform_file=transform_file, debug=debug)
     return problems
 
 def temp_file_name(tmpdir): return tmpdir+'fasola_tmp.musicxml'
