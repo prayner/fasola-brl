@@ -381,6 +381,7 @@ def canonicalize_shapenote_part(part):
     if isinstance(part.measure(-1).elements[0], music21.bar.Repeat):
         part.measure(-1).remove(part.measure(-1).elements[0])
 
+
 def count_verses( stream):
     """ count the number of verses in a stream. uses heuristic that a lyric starting with number followed by dot is a verse number """
     lyric_string = music21.text.assembleAllLyrics( stream)
