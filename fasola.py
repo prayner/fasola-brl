@@ -238,11 +238,9 @@ def braille_shapenote_part( input_part, key=None, expand_repeats=False):
     return unfilled
 
 
-def braille_extract_part( filename, partname, foldcase=False):
-    """ extracts a part with name partname from a musicxml file filename,
+def extract_part( piece, partname, foldcase=False):
+    """ extracts a part with name partname from a music21.stream.Score objectpiece,
     if foldcase is True the name match is case insensitive"""
-    try: piece = music21.converter.parse( filename, forceSource=True)
-    except: raise IndexError
     if foldcase: copyname = partname.lower()
     else: copyname = partname
     try: return piece.parts[ copyname]
@@ -286,7 +284,7 @@ def braillesong( lyrics_file, music_file, parts, louistable='en-GB-g2.ctb', widt
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
         partstring += braille_shapenote_part(
-            piece[p],
+            extract_part(piece,p),
             key=key, expand_repeats=True)
         result += partstring
         result+='\n\n'
@@ -326,7 +324,7 @@ def brailleList(song_list, lyrics_dir, title_file, music_dir, parts, outdir,
 
 def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir,
                louistable="en-GB-g2.ctb", bad_numbers=None,
-               transform_file='transform.xslt', debug=True):
+               transform_file='transform.xslt', debug=False):
     if not outdir.endswith('/'):
         outdir +='/'
     file2number,_ = get_lyricsfile2number( title_file)
