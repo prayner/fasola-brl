@@ -4,17 +4,19 @@ lyricsmeta = lyricsroot+"metadata/"
 titlefile = lyricsmeta+"song_titles.tsv"
 musicdir='/home/peter/nonwork/fasola/2025-music/MusicXML - Sacred Harp 2025/'
 tmpdir = '/tmp/'
+transform_file='transform.xslt'
+
 # some things to do with braille printers
 linewidth = 32
 # hardcoded path to liblouis directory, only used if needed
 LOUISDIR = "/usr/lib/python3/dist-packages"
 import os
-import re
 import glob
-import subprocess
 import music21
 import unicodedata
 import codecs
+import subprocess
+
 # cannot install louis from conda, hack to get it from system package
 try:
     import louis
@@ -202,7 +204,10 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
 def braille_shapenote_part( input_part, key=None, expand_repeats=False):
     """ returns string which is transcription of part. first braille it then wordwrap each line separately """
     if expand_repeats:
-        part = input_part.expandRepeats()
+        try:
+            part = input_part.expandRepeats()
+        except:
+            part = input_part
         # remove duplicate time signatures if they don't change
         sigs=list(part.recurse().getElementsByClass(
             music21.meter.TimeSignature))
@@ -233,11 +238,9 @@ def braille_shapenote_part( input_part, key=None, expand_repeats=False):
     return unfilled
 
 
-def braille_extract_part( filename, partname, foldcase=False):
-    """ extracts a part with name partname from a musicxml file filename,
+def extract_part( piece, partname, foldcase=False):
+    """ extracts a part with name partname from a music21.stream.Score objectpiece,
     if foldcase is True the name match is case insensitive"""
-    try: piece = music21.converter.parse( filename)
-    except: raise IndexError
     if foldcase: copyname = partname.lower()
     else: copyname = partname
     try: return piece.parts[ copyname]
@@ -256,7 +259,7 @@ def key_from_file( music_file):
        the music21.analyze method occasionally gets it wrong.
        our heuristic is if they agree we return that.
        if they don't we take the number of sharps from the read key and mode from the analyzed"""
-    piece = music21.converter.parse( music_file)
+    piece = music21.converter.parse( music_file, forceSource=True)
     analyzed_key = piece.analyze('key')
     read_key = list(piece.recurse().getElementsByClass(music21.key.Key))[0]
     if read_key == analyzed_key:
@@ -274,66 +277,54 @@ def braillesong( lyrics_file, music_file, parts, louistable='en-GB-g2.ctb', widt
     title, lyrics = braillewords( lyrics_file, louistable=louistable, width=width)
     result = title
     key = key_from_file( music_file)
+    tmpfile = tmpdir+'fasola_tmp.musicxml'
+    preprocess_shapenote_file(music_file, tmpfile, transform_file)
+    piece = music21.converter.parse( tmpfile, forceSource=True)
+    canonicalize_shapenote_piece( piece)
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
         partstring += braille_shapenote_part(
-            braille_extract_part( music_file,p,foldcase=True),
+            extract_part(piece,p),
             key=key, expand_repeats=True)
         result += partstring
+        result+='\n\n'
     result += lyrics
-    result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
+    #result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
 
-def braillesong_line_by_line( lyrics_file, music_file, parts,
-                              louistable='en-GB-g2.ctb',
-                              width=32,
-                              tmp_file='./fasola_tmp.musicxml',
-                              transform_file='transform.xslt',
-                             ):
-    """ produces string with lyrics and selected parts."""
-    title, lyrics = braillewords( lyrics_file, louistable=louistable, width=width)
-    result = title
-    key = key_from_file( music_file)
-    preprocess_shapenote_file(music_file, tmp_file, transform_file)
-    piece = music21.converter.parse(tmp_file,forceSource=True)
-    cononicalize_piece(piece)
-    for p in parts:
-        partstring = '  '+louis.translateString( [louistable], p)+':\n'
-        partstring += braille_shapenote_part(
-            piece[p],
-            key=key, expand_repeats=True)
-        result += partstring
-        result+='\n'
-        
-    result += lyrics
-    result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
-    return result
-
-
-def braillelist( numbers, parts, device='/dev/usb/lp0'):
-    """ brailles shapenote numbers from list"""
-    f=codecs.open(device, 'w',encoding='utf-8')
-    for number in numbers:
-        print (number)
+def brailleList(song_list, lyrics_dir, title_file, music_dir, parts, outdir,
+               louistable="en-GB-g2.ctb", bad_numbers=None,
+               transform_file='transform.xslt', debug=False):
+    if not outdir.endswith('/'):
+        outdir +='/'
+    file2number,_ = get_lyricsfile2number( title_file)
+    if bad_numbers is not None:
+        for b in bad_numbers:
+            file2number.pop(b)
+    number2music_file = get_musicfile2number( musicdir)
+    problems=[]
+    for lyrics_file in song_list:
         try:
-            song =  braillesong( number, parts)
-            f.write( song)
-        except IOError:
-            print (number,' not found')
-            continue
-    f.close()
-    return
+            lyrics_path = lyrics_dir+lyrics_file+'.txt'
+            title, lyrics = braillewords( lyrics_path)
+            music_path = number2music_file[lyrics_file]
+            outfile = outdir + file2number[lyrics_file]
+            tmpfile = temp_file_name('/tmp/')
+            preprocess_shapenote_file( music_path, tmpfile, transform_file)
+            with open(outfile,'w') as outf:
+                outf.write(louis.translateString( [louistable],  file2number[lyrics_file]))
+                outf.write(' ')
+                outf.write( braillesong(lyrics_path, tmpfile, parts))
+        except:
+            if debug:
+                raise
+            else:
+                problems.append(lyrics_file)
+    return problems
 
-def extract_numbers( filename):
-    """ returns a set of strings which are words containing a digit from the filename """
-    import re
-    f = open( filename, 'r')
-    # now return the words with punctuation removed and lower case
-    words = re.sub('[.,;]', ' ', f.read()).lower().split()
-    f.close()
-    return [w for w in words if re.search('\d', w)]
-
-def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir, louistable="en-GB-g2.ctb", bad_numbers=None):
+def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir,
+               louistable="en-GB-g2.ctb", bad_numbers=None,
+               transform_file='transform.xslt', debug=False):
     if not outdir.endswith('/'):
         outdir +='/'
     file2number,_ = get_lyricsfile2number( title_file)
@@ -348,38 +339,47 @@ def brailleAll(lyrics_dir, title_file, music_dir, parts, outdir, louistable="en-
             title, lyrics = braillewords( lyrics_path)
             music_path = number2music_file[lyrics_file]
             outfile = outdir + file2number[lyrics_file]
-            
+            tmpfile = temp_file_name('/tmp/')
+            preprocess_shapenote_file( music_path, tmpfile, transform_file)
             with open(outfile,'w') as outf:
                 outf.write(louis.translateString( [louistable],  file2number[lyrics_file]))
                 outf.write(' ')
-                outf.write( braillesong(lyrics_path, music_path, parts))
+                outf.write( braillesong(lyrics_path, tmpfile, parts))
         except:
-            problems.append(lyrics_file)
+            if debug:
+                raise
+            else:
+                problems.append(lyrics_file)
     return problems
 
-def braille_shapenote_line_by_line( filename, part, expand_repeats=False):
-    key = key_from_ile(filename)
-    input_piece = music21.converter.parse(filename)
-    if expand_repeats:
-        piece = input_piece.expandRepeats()
-        # remove duplicate time signatures if they don't change
-        sigs=list(piece.recurse().getElementsByClass(
-            music21.meter.TimeSignature))
-        if len(sigs) > 1:
-            current_sig = sigs[0]
-            for sig in sigs[1:]:
-                if sig == current_sig:
-                    piece.remove(sig,recurse=True)
-                current_sig = sig
-    else:
-        piece = input_piece
+def temp_file_name(tmpdir): return tmpdir+'fasola_tmp.musicxml'
 
-    result = u''
-    systems = systems_from_stream( piece)
-    for verse in range(1, count_verses(piece)+1):
-        for system in systems:
-            result += braille_shapenote_system( system, part, verse, key=key, )
-    return result
+def preprocess_shapenote_file(infile, outfile, transform_file):
+    command_list = ['xsltproc', '--novalid']
+    command_list.append('-o')
+    command_list.append(outfile)
+    command_list.append(transform_file)
+    command_list.append(infile)
+    subprocess.run(command_list)
+def canonicalize_shapenote_piece( piece):
+    """ at the moment only fixing weird measure number in pickup bars """
+    for p in piece.parts:
+        canonicalize_shapenote_part( p)
+
+def canonicalize_shapenote_part(part):
+    """fixing weird measure numbers for partial bars and weird final repeat.
+       note it modifies in place"""
+    measures =part.recurse().getElementsByClass(music21.stream.Measure)
+    measure_suffixes = set([m.numberSuffix for m in measures])
+    if measure_suffixes != set([None]): # need to alter numbers and suffixes
+        for i,m in enumerate(measures):
+            if m.numberSuffix is not None:
+                m.number = measures[1].number -1 if i == 0 else \
+                measures[i-1].number +1
+                m.numberSuffix = None
+    # now delete repeat from final bar if it's there
+    if isinstance(part.measure(-1).elements[0], music21.bar.Repeat):
+        part.measure(-1).remove(part.measure(-1).elements[0])
 
 def count_verses( stream):
     """ count the number of verses in a stream. uses heuristic that a lyric starting with number followed by dot is a verse number """
@@ -417,15 +417,6 @@ def systems_from_piece( piece):
     result.append(piece.measures(newsystem_measures[-1], None))
     return result
 
-def temp_file_name(tmpdir): return tmpdir+'fasola_tmp.musicxml'
-
-def preprocess_shapenote_file(infile, outfile, transform_file):
-    command_list = ['xsltproc', '--novalid']
-    command_list.append('-o')
-    command_list.append(outfile)
-    command_list.append(transform_file)
-    command_list.append(infile)
-    subprocess.run(command_list)
 
 def systems_from_file( filename, expand_repeats=True):
     piece = music21.converter.parse( filename, forceSource=True)
@@ -510,25 +501,6 @@ def find_lyrics( piece,
 def flatten_lyric_text( lyric_list):
     return [l.text for l in lyric_list if l is not None]
 
-def canonicalize_shapenote_piece( piece):
-    """ at the moment only fixing weird measure number in pickup bars """
-    for p in piece.parts:
-        canonicalize_shapenote_part( p)
-
-def canonicalize_shapenote_part(part):
-    """fixing weird measure numbers for partial bars and weird final repeat.
-       note it modifies in place"""
-    measures =part.recurse().getElementsByClass(music21.stream.Measure)
-    measure_suffixes = set([m.numberSuffix for m in measures])
-    if measure_suffixes != set([None]): # need to alter numbers and suffixes
-        for i,m in enumerate(measures):
-            if m.numberSuffix is not None:
-                m.number = measures[1].number -1 if i == 0 else \
-                measures[i-1].number +1
-                m.numberSuffix = None
-    # now delete repeat from final bar if it's there
-    if isinstance(part.measure(-1).elements[0], music21.bar.Repeat):
-        part.measure(-1).remove(part.measure(-1).elements[0])
 
 def contains_only_rests( stream):
     result = True
@@ -556,4 +528,53 @@ def extract_lyrics( stream, line_number=1):
             continue
         if lyric.text is not None:
             result.append(lyric.text)
+    return result
+
+def braillesong_line_by_line( lyrics_file, music_file, parts,
+                              louistable='en-GB-g2.ctb',
+                              width=32,
+                              tmp_file='./fasola_tmp.musicxml',
+                              transform_file='transform.xslt',
+                             ):
+    """ produces string with lyrics and selected parts."""
+    title, lyrics = braillewords( lyrics_file, louistable=louistable, width=width)
+    result = title
+    key = key_from_file( music_file)
+    preprocess_shapenote_file(music_file, tmp_file, transform_file)
+    piece = music21.converter.parse(tmp_file,forceSource=True)
+    cononicalize_piece(piece)
+    for p in parts:
+        partstring = '  '+louis.translateString( [louistable], p)+':\n'
+        partstring += braille_shapenote_part(
+            piece[p],
+            key=key, expand_repeats=True)
+        result += partstring
+        result+='\n'
+        
+    result += lyrics
+    result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
+    return result
+
+def braille_shapenote_line_by_line( filename, part, expand_repeats=False):
+    key = key_from_ile(filename)
+    input_piece = music21.converter.parse(filename)
+    if expand_repeats:
+        piece = input_piece.expandRepeats()
+        # remove duplicate time signatures if they don't change
+        sigs=list(piece.recurse().getElementsByClass(
+            music21.meter.TimeSignature))
+        if len(sigs) > 1:
+            current_sig = sigs[0]
+            for sig in sigs[1:]:
+                if sig == current_sig:
+                    piece.remove(sig,recurse=True)
+                current_sig = sig
+    else:
+        piece = input_piece
+
+    result = u''
+    systems = systems_from_stream( piece)
+    for verse in range(1, count_verses(piece)+1):
+        for system in systems:
+            result += braille_shapenote_system( system, part, verse, key=key, )
     return result
