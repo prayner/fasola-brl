@@ -261,15 +261,26 @@ def key_from_file( music_file):
        if they don't we take the number of sharps from the read key and mode from the analyzed"""
     piece = music21.converter.parse( music_file, forceSource=True)
     analyzed_key = piece.analyze('key')
-    read_key = list(piece.recurse().getElementsByClass(music21.key.Key))[0]
-    if read_key == analyzed_key:
+    # read key from file, might be Key or KeySignature object
+    key_list = list(piece.recurse().getElementsByClass(music21.key.Key))
+    if len(key_list) >0:
+        read_key = key_list[0]
+    else:
+        keysig_list = list(piece.recurse().getElementsByClass(music21.key.KeySignature))
+        if len(keysig_list) > 0:
+            read_key = keysig_list[0].asKey()
+        else:
+            read_key = None
+        
+    if read_key is None:
+        result = analyzed_key # fall back 
+    elif read_key == analyzed_key:
+        result = read_key
+    elif  analyzed_key.sharps != read_key.sharps: 
+        print(f"key problem in music file {music_file:s}")
         result = read_key
     else:
-        if analyzed_key.mode == read_key.mode:
-            print(f"key problem in music file {music_file:s}")
-            result = read_key
-        else:
-            result = read_key.relative
+        result = read_key.relative
     return result
         
 def braillesong( lyrics_file, music_file, parts, louistable='en-GB-g2.ctb', width=32,):
