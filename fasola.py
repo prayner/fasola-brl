@@ -5,6 +5,7 @@ titlefile = lyricsmeta+"song_titles.tsv"
 musicdir='/home/peter/nonwork/fasola/2025-music/MusicXML - Sacred Harp 2025/'
 tmpdir = '/tmp/'
 transform_file='transform.xslt'
+copyright_file = 'copyright.txt'
 
 # some things to do with braille printers
 linewidth = 32
@@ -12,6 +13,7 @@ linewidth = 32
 LOUISDIR = "/usr/lib/python3/dist-packages"
 import os
 import glob
+import shutil
 import music21
 import unicodedata
 import codecs
@@ -308,6 +310,7 @@ def brailleList(song_list, lyrics_dir, title_file, music_dir, parts, outdir,
                transform_file='transform.xslt', debug=False):
     if not outdir.endswith('/'):
         outdir +='/'
+    shutil.copy( copyright_file, outdir)
     file2number,_ = get_lyricsfile2number( title_file)
     if bad_numbers is not None:
         for b in bad_numbers:

@@ -1,0 +1,4 @@
+Material in this directory is, unless otherwise stated, copyright of the
+Sacred Harp Publishing Company. Detail on the copyright of each song
+can be found at
+https://github.com/Sacred-Harp-Publishing-Company/2025-edition/metadata/topmatter.tsv
