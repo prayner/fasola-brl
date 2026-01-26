@@ -255,13 +255,18 @@ def extract_part( piece, partname, foldcase=False):
         part_number = fallback_dict[partname.lower()]
         return piece.parts[part_number]
 
-def key_from_file( music_file):
-    """ there are two ways of getting this and they don't always agree.
+def key_from_file_or_piece( input):
+    """ input can either be a file name or a music21.stream.Stream
+ there are two ways of getting this and they don't always agree.
        The musicxml lists every mode as major though it's sharp count is correct.
        the music21.analyze method occasionally gets it wrong.
        our heuristic is if they agree we return that.
        if they don't we take the number of sharps from the read key and mode from the analyzed"""
-    piece = music21.converter.parse( music_file, forceSource=True)
+    if not isinstance(input, music21.stream.Stream):
+        piece = music21.converter.parse( input, forceSource=True)
+    else:
+        piece = input
+        
     analyzed_key = piece.analyze('key')
     # read key from file, might be Key or KeySignature object
     key_list = list(piece.recurse().getElementsByClass(music21.key.Key))
@@ -289,11 +294,11 @@ def braillesong( lyrics_file, music_file, parts, louistable='en-GB-g2.ctb', widt
     """ produces string with lyrics and selected parts."""
     title, lyrics = braillewords( lyrics_file, louistable=louistable, width=width)
     result = title
-    key = key_from_file( music_file)
     tmpfile = tmpdir+'fasola_tmp.musicxml'
     preprocess_shapenote_file(music_file, tmpfile, transform_file)
     piece = music21.converter.parse( tmpfile, forceSource=True)
     canonicalize_shapenote_piece( piece)
+    key = key_from_file_or_piece( piece)
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
         partstring += braille_shapenote_part(
