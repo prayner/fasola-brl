@@ -458,7 +458,6 @@ def find_lyrics( piece,
                  simple_multi_verse = None,
                 ):
     """ note that measure_number is after repeats have been expanded"""
-    canonicalize_shapenote_piece(piece)
     if simple_multi_verse is None:
         simple_multi_verse = is_simple_multi_verse(piece)
     part = piece.parts[part_number]
