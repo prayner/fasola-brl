@@ -14,6 +14,7 @@ LOUISDIR = "/usr/lib/python3/dist-packages"
 import os
 import glob
 import shutil
+import re
 import music21
 import unicodedata
 import codecs
