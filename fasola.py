@@ -537,46 +537,63 @@ def braillesong_line_by_line( lyrics_file, music_file, parts,
                               width=32,
                               tmp_file='./fasola_tmp.musicxml',
                               transform_file='transform.xslt',
+                              expand_repeats=False,
                              ):
     """ produces string with lyrics and selected parts."""
     title, lyrics = braillewords( lyrics_file, louistable=louistable, width=width)
     result = title
-    key = key_from_file( music_file)
     preprocess_shapenote_file(music_file, tmp_file, transform_file)
     piece = music21.converter.parse(tmp_file,forceSource=True)
-    cononicalize_piece(piece)
+    canonicalize_shapenote_piece(piece, )
+    key = key_from_file_or_piece( piece)
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
         partstring += braille_shapenote_part(
             piece[p],
-            key=key, expand_repeats=True)
+            key=key, expand_repeats=expand_repeats)
         result += partstring
         result+='\n'
-        
+        result+=braille_shapenote_part_line_by_line(
+            piece,3,key,bars_per_line=4)
     result += lyrics
     result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
 
-def braille_shapenote_line_by_line( filename, part, expand_repeats=False):
-    key = key_from_ile(filename)
-    input_piece = music21.converter.parse(filename)
-    if expand_repeats:
-        piece = input_piece.expandRepeats()
-        # remove duplicate time signatures if they don't change
-        sigs=list(piece.recurse().getElementsByClass(
-            music21.meter.TimeSignature))
-        if len(sigs) > 1:
-            current_sig = sigs[0]
-            for sig in sigs[1:]:
-                if sig == current_sig:
-                    piece.remove(sig,recurse=True)
-                current_sig = sig
-    else:
-        piece = input_piece
-
+def braille_shapenote_part_line_by_line( piece, part_name, key, bars_per_line):
+    """ rough approach is to only do this for simple_multi_verse,
+       loop over all verses, then for each measure in expanded measuremap
+       find the measure, braille it and attach the relevant lyrics.
+       generate a separate string for each verse and append them."""
     result = u''
-    systems = systems_from_stream( piece)
-    for verse in range(1, count_verses(piece)+1):
-        for system in systems:
-            result += braille_shapenote_system( system, part, verse, key=key, )
+    if not is_simple_multi_verse(piece):
+        return result
+    part = extract_part(piece, part_name)
+    measure_list = music21.repeat.Expander(part).measureMap()
+    n_measures_in_part = len(part.measures(1,None, collect=[], gatherSpanners=False))
+    number_of_verses = count_verses(piece)
+    for verse in range(number_of_verses):
+        lyric_string = u''
+        music_string = u''
+        last_octave=None
+        for m in range(len(measure_list)):
+            if m % bars_per_line == 0:
+                result += lyric_string
+                result += music_string
+                lyric_string = u'\n'
+                music_string = u'\n'
+            measure_lyric_list = find_lyrics( piece, 3, verse+1, m,
+                                              measure_list=measure_list,
+                                              n_measures_in_part=n_measures_in_part,
+                 number_of_verses=number_of_verses,
+                 simple_multi_verse = True)
+            measure_lyric_string = ' '.join(measure_lyric_list)
+            lyric_string += measure_lyric_string + ' '
+            measure_in_part = find_measure_in_part( measure_list[ m],
+                                                    n_measures_in_part)
+            found_measure = part.measure(measure_in_part)
+            bar, lastOctave = braille_shapenote_bar( found_measure, key,
+                                                     oldOctave=lastOctave)
+            music_string +=bar + ' '
+            
+
     return result
