@@ -568,7 +568,7 @@ def braille_shapenote_part_line_by_line( piece, part_name, key, bars_per_line):
     if not is_simple_multi_verse(piece):
         return result
     part = extract_part(piece, part_name)
-    measure_list = music21.repeat.Expander(part).measureMap()
+    measure_list = music21.repeat.Expander(part).measureMap(returnType='measureNumber')
     n_measures_in_part = len(part.measures(1,None, collect=[], gatherSpanners=False))
     number_of_verses = count_verses(piece)
     for verse in range(number_of_verses):
