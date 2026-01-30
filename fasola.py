@@ -143,7 +143,7 @@ def note2symbol(note, key):
     try: return symbolDict[key.mode][dictByLength( note)][ step], octaveInKey( note, key)
     except KeyError: return unknown, octaveInKey( note, key)
 
-def brailleTimeSignature( sig): return brlP(3456)+sig.ratioString+' '
+def brailleTimeSignature( sig): return brlP(3456)+sig.ratioString
         
 
 
@@ -577,8 +577,8 @@ def braille_shapenote_part_line_by_line( piece, part_name, key, bars_per_line):
         lastOctave=None
         for m in range(len(measure_list)):
             if m % bars_per_line == 0:
-                result += lyric_string
-                result += music_string
+                result += lyric_string.rstrip()
+                result += music_string.rstrip()
                 lyric_string = u'\n'
                 music_string = u'\n'
             measure_lyric_list = find_lyrics( piece, 3, verse+1, m,
