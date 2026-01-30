@@ -481,7 +481,7 @@ def find_lyrics( piece,
             if part_has_text[i]:
                 part_lyric_dict[verse] = measure_lyrics
                 verse += 1
-        return [part_lyric_dict[verse_number]]
+        return part_lyric_dict[verse_number]
     else:
         measure_lyrics = extract_lyrics(found_measure)
         if len(measure_lyrics) > 0: # we have lyrics explicitly for this part
