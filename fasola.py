@@ -588,7 +588,7 @@ def braille_shapenote_part_line_by_line( piece, part_name, key, bars_per_line):
                  simple_multi_verse = True)
             measure_lyric_string = ' '.join(measure_lyric_list)
             lyric_string += measure_lyric_string + ' '
-            measure_in_part = find_measure_in_part( measure_list[ m],
+            measure_in_part = find_measure_in_part( measure_list[m],
                                                     n_measures_in_part)
             found_measure = part.measure(measure_in_part)
             bar, lastOctave = braille_shapenote_bar( found_measure, key,
