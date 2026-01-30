@@ -506,7 +506,7 @@ def flatten_lyric_text( lyric_list):
 
 def contains_only_rests( stream):
     result = True
-    for n in stream.notesAndRests:
+    for n in stream.flatten().notesAndRests:
         if not isinstance(n, music21.note.Rest):
             result = False
     return result
