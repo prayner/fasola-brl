@@ -574,7 +574,7 @@ def braille_shapenote_part_line_by_line( piece, part_name, key, bars_per_line):
     for verse in range(number_of_verses):
         lyric_string = u''
         music_string = u''
-        last_octave=None
+        lastOctave=None
         for m in range(len(measure_list)):
             if m % bars_per_line == 0:
                 result += lyric_string
