@@ -27,4 +27,5 @@
       <repeat direction="backward"/>
     </barline>
   </xsl:template>
+    <xsl:template match="note[voice='2']"/>
 </xsl:stylesheet>
