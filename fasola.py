@@ -549,7 +549,7 @@ def braillesong_line_by_line( lyrics_file, music_file, parts,
     for p in parts:
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
         partstring += braille_shapenote_part(
-            piece[p],
+            extract_part(piece,p),
             key=key, expand_repeats=expand_repeats)
         result += partstring
         result+='\n'
