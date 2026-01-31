@@ -225,7 +225,7 @@ def braille_shapenote_part( input_part, key=None, expand_repeats=False):
                 
     unfilled =u''
     line = u''
-    measures = part.recurse().getElementsByClass('Measure')
+    measures = part.measures(1,None, collect=[], gatherSpanners=False)
     if key is None: key = part.analyze('key')
     unfilled += str(key)+'\n'
     lastOctave = None # records group of last note in bar, really state for printing up/down at start of next bar
