@@ -244,17 +244,27 @@ def braille_shapenote_part( input_part, key=None, expand_repeats=False):
 def extract_part( piece, partname, foldcase=False):
     """ extracts a part with name partname from a music21.stream.Score objectpiece,
     if foldcase is True the name match is case insensitive"""
-    if foldcase: copyname = partname.lower()
-    else: copyname = partname
-    try: return piece.parts[ copyname]
-    except KeyError:
+    if isinstance(partname, int): # got part directly
+        return piece.parts[partname]
+    else:
+        if foldcase:
+            copyname = partname.lower()
+        else:
+            copyname = partname
+        part_number = find_part_number(piece, copyname)
+        return piece.parts[part_number]
+
+def find_part_number(piece, part_name):
+    if isinstance(part_name, int):
+        part_number = part_name
+    else:
         # create fallback dictionary depending on number of parts and try it by number
         if len(piece.parts) == 4:
             fallback_dict = {'treble':0, 'alto':1, 'tenor':2, 'bass':3}
         else:
             fallback_dict = {'treble':0, 'tenor':1, 'bass':2}
-        part_number = fallback_dict[partname.lower()]
-        return piece.parts[part_number]
+        part_number = fallback_dict[part_name.lower()]
+    return part_number
 
 def key_from_file_or_piece( input):
     """ input can either be a file name or a music21.stream.Stream
