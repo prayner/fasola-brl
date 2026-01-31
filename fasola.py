@@ -594,6 +594,7 @@ def braille_shapenote_part_line_by_line( piece, part_name, key, bars_per_line):
             bar, lastOctave = braille_shapenote_bar( found_measure, key,
                                                      oldOctave=lastOctave)
             music_string +=bar + ' '
-            
-
+        result += lyric_string.rstrip()
+        result += music_string.rstrip()
+        result+='\n\n'
     return result
