@@ -158,7 +158,7 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
     if len(layouts) > 0:
         if layouts[0].isNew:
             result += '\n'
-    for e in bar:
+    for e in bar.flatten():
         if isinstance(e, music21.bar.Repeat):
             if e.direction == 'start': result+=brlP(238)+brlP(3678)
             elif e.direction == 'end': result += brlP(3678)+brlP(567)
