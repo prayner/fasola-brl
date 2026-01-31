@@ -557,14 +557,15 @@ def braillesong_line_by_line( lyrics_file, music_file, parts,
     canonicalize_shapenote_piece(piece, )
     key = key_from_file_or_piece( piece)
     for p in parts:
+        part_number = find_part_number(piece, p)
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
         partstring += braille_shapenote_part(
-            extract_part(piece,p),
+            piece.parts[part_number],
             key=key, expand_repeats=expand_repeats)
         result += partstring
         result+='\n'
         result+=braille_shapenote_part_line_by_line(
-            piece,3,key,bars_per_line=4)
+            piece,part_number,key,bars_per_line=4)
     result += lyrics
     result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
