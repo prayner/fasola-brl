@@ -344,7 +344,7 @@ def brailleList(song_list, lyrics_dir, title_file, music_dir, parts, outdir,
             with open(outfile,'w') as outf:
                 outf.write(louis.translateString( [louistable],  file2number[lyrics_file]))
                 outf.write(' ')
-                outf.write( braillesong(lyrics_path, tmpfile, parts))
+                outf.write( braillesong_line_by_line(lyrics_path, tmpfile, parts))
         except:
             if debug:
                 raise
@@ -564,8 +564,14 @@ def braillesong_line_by_line( lyrics_file, music_file, parts,
             key=key, expand_repeats=expand_repeats)
         result += partstring
         result+='\n'
-        result+=braille_shapenote_part_line_by_line(
-            piece,part_number,key,bars_per_line=4)
+        try:
+            line_by_line =braille_shapenote_part_line_by_line(
+                piece,part_number,key,bars_per_line=4)
+            if len(line_by_line) > 0:
+                print(f'success with {title}')
+            result += line_by_line
+        except:
+            pass
     result += lyrics
     result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
     return result
