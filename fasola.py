@@ -100,6 +100,7 @@ majorDict = {'veryShort':majorVeryShort, 'short':majorShort, 'long':majorLong, '
 minorDict = {'veryShort':minorVeryShort, 'short':minorShort, 'long':minorLong, 'veryLong':minorVeryLong}
 
 symbolDict={'major':majorDict, 'minor':minorDict}
+highDict = {False:brlP(6), True:brlP(4),None:''}
 dot = brlP(3)
 tie = brlP(36)
 unknown = brlP(3456)
@@ -129,6 +130,19 @@ def dictByLength( note):
     else: return "long"
 
 
+def is_high(note, key):
+    """ returns whether note is in upper or lower part of octave"""
+    
+    if isinstance(note, music21.note.Rest):
+        return None
+
+    note_number = note.pitch.midi
+    step = (note_number - tonicMIDIpitch( key)) % 12
+    if step >= 5:
+        return True
+    else:
+        return False
+
 def note2symbol(note, key):
     """ returns the braille symbol for the given note in the given key,
     the octave relative to tonic  group for the note"""
@@ -155,6 +169,7 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
     if len(layouts) > 0:
         if layouts[0].isNew:
             result += '\n'
+    old_high = None
     for e in bar:
         if isinstance(e, music21.bar.Repeat):
             if e.direction == 'start': result+=brlP(238)+brlP(3678)
@@ -181,6 +196,10 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
                 if (oldOctave is not None) and (note.pitch is not None):
                     if octave == oldOctave +1: result += up
                     elif octave == oldOctave -1: result +=  down
+                now_high = is_high( note, key)
+                if now_high != old_high:
+                    result+= highDict[now_high]
+                    old_high = now_high
                 result += symbol
                 if (note.duration.quarterLength not in known_durations) & (note.duration.quarterLength > 0.5): result += dot # not very precise but gives warning it's nonstandard length
                 if octave is not None: oldOctave = octave
@@ -191,6 +210,10 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None):
             if (oldOctave is not None) and (isinstance(e, music21.note.Note)):
                 if octave == oldOctave +1: result += up
                 elif octave == oldOctave -1: result += down
+            now_high = is_high( e, key)
+            if now_high != old_high:
+                result+= highDict[now_high]
+                old_high = now_high
             result += symbol
             if (e.duration.quarterLength not in known_durations) & (e.duration.quarterLength > 0.5): result +=  dot # not very precise but gives warning it's nonstandard length
             if octave is not None: oldOctave = octave
