@@ -78,10 +78,10 @@ def brlP(n):
 
 # define dictionaries of braille output
 # start by defining patterns for major, patterns are different for different note lengths
-majorVeryShort = {0:brlP(1234), 2:brlP(234), 4:brlP(123), 5:brlP(1246), 7:brlP(246), 9:brlP(126), 11:brlP(146), None:brlP(1245)} 
-majorShort = {0:brlP(12347), 2:brlP(2347), 4:brlP(1237), 5:brlP(12467), 7:brlP(2467), 9:brlP(1267), 11:brlP(1467), None:brlP(12457)} 
-majorLong = {0:brlP(12348), 2:brlP(2348), 4:brlP(1238), 5:brlP(12468), 7:brlP(2468), 9:brlP(1268), 11:brlP(1468), None:brlP(12458)} 
-majorVeryLong = {0:brlP(123478), 2:brlP(23478), 4:brlP(12378), 5:brlP(124678), 7:brlP(24678), 9:brlP(12678), 11:brlP(14678), None:brlP(124578)}
+majorVeryShort = {0:brlP(124), 2:brlP(24), 4:brlP(12), 5:brlP(124), 7:brlP(24), 9:brlP(12), 11:brlP(14), None:brlP(1245)} 
+majorShort = {0:brlP(1234), 2:brlP(234), 4:brlP(123), 5:brlP(1234), 7:brlP(234), 9:brlP(123), 11:brlP(134), None:brlP(12345)} 
+majorLong = {0:brlP(1246), 2:brlP(246), 4:brlP(126), 5:brlP(1246), 7:brlP(246), 9:brlP(126), 11:brlP(146), None:brlP(12456)} 
+majorVeryLong = {0:brlP(12346), 2:brlP(2346), 4:brlP(1236), 5:brlP(12346), 7:brlP(2346), 9:brlP(1236), 11:brlP(1346), None:brlP(123456)}
 # now set up the minor patterns from the major ones, noting that note numbers are different
 minorVeryShort = {}
 minorShort = {}
@@ -104,7 +104,7 @@ dot = brlP(3)
 tie = brlP(36)
 unknown = brlP(3456)
 up = brlP(45)
-down = brlP(68)
+down = brlP(56)
 known_durations = [0.5, 1.0, 2.0, 4.0]
 
 
