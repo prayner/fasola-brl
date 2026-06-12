@@ -298,7 +298,7 @@ def braillesong( lyrics_file, music_file, parts, louistable='en-GB-g2.ctb', widt
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
         partstring += braille_shapenote_part(
             extract_part(piece,p),
-            key=key, expand_repeats=True)
+            key=key, expand_repeats=False)
         result += partstring
         result+='\n\n'
     result += lyrics
