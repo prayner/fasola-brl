@@ -19,6 +19,8 @@ import music21
 import unicodedata
 import codecs
 import subprocess
+import xml.etree.ElementTree as ElementTree
+from collections import defaultdict
 
 # cannot install louis from conda, hack to get it from system package
 try:
@@ -44,6 +46,11 @@ def get_musicfile2number( musicdir):
         song_number = filename.split("-")[0]
         song_number = song_number.lstrip("0") 
         number2file[song_number] = f
+    # songs whose music is named without the .1 or .2 of the lyrics, e.g. 347 for 347.1
+    for f in glob.glob(lyricsdir + "*.txt"):
+        song_number = os.path.basename(f)[:-len(".txt")]
+        if song_number not in number2file and song_number.split(".")[0] in number2file:
+            number2file[song_number] = number2file[song_number.split(".")[0]]
     return number2file
 
 
@@ -147,13 +154,17 @@ def brailleTimeSignature( sig): return brlP(3456)+sig.ratioString
         
 
 
-def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None, show_time_signature=True, return_pieces=False):
+def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None, show_time_signature=True, return_pieces=False,
+                           show_repeats=True, window=None):
     """ returns a string of symbols for the shapes in the bar
     The current plan is that each note is a symbol and optionally followed by a dot.
     If the note moves outside the octave it is preceded by symbols meaning up or down
     showSplits determines whether chords are listed in full or just the top note
     if return_pieces is True the string is returned as a list of (offset in bar, symbols)
-    with one entry per note or rest, so that a bar can be split between lines"""
+    with one entry per note or rest, so that a bar can be split between lines
+    show_repeats False leaves out repeat barlines (e.g. where they are written from elsewhere)
+    window (start, end) only includes what is between those offsets in the bar, for a bar
+    of which only part is repeated"""
     result = u''
     note_starts = [] # (offset, position in result) for each note, chord or rest
     # first check if it's a new system whereupon we need a new line
@@ -162,7 +173,9 @@ def braille_shapenote_bar( bar, key, oldOctave=None, showSplits=None, show_time_
         if layouts[0].isNew:
             result += '\n'
     for e in bar.flatten():
-        if isinstance(e, music21.bar.Repeat):
+        if window is not None and not window[0] <= e.offset < window[1]:
+            continue
+        if isinstance(e, music21.bar.Repeat) and show_repeats:
             if e.direction == 'start': result+=brlP(238)+brlP(3678)
             elif e.direction == 'end': result += brlP(3678)+brlP(567)
         if isinstance(e, music21.meter.TimeSignature) and show_time_signature: result += brailleTimeSignature(e)
@@ -346,7 +359,7 @@ def brailleList(song_list, lyrics_dir, title_file, music_dir, parts, outdir,
     if bad_numbers is not None:
         for b in bad_numbers:
             file2number.pop(b)
-    number2music_file = get_musicfile2number( musicdir)
+    number2music_file = get_musicfile2number( music_dir)
     problems=[]
     for lyrics_file in song_list:
         try:
@@ -354,12 +367,11 @@ def brailleList(song_list, lyrics_dir, title_file, music_dir, parts, outdir,
             title, lyrics = braillewords( lyrics_path)
             music_path = number2music_file[lyrics_file]
             outfile = outdir + file2number[lyrics_file]
-            tmpfile = temp_file_name('/tmp/')
-            preprocess_shapenote_file( music_path, tmpfile, transform_file)
             with open(outfile,'w') as outf:
                 outf.write(louis.translateString( [louistable],  file2number[lyrics_file]))
                 outf.write(' ')
-                outf.write( braillesong_line_by_line(lyrics_path, tmpfile, parts))
+                outf.write( braillesong_general(lyrics_path, music_path, parts, louistable=louistable,
+                                                tmp_file=temp_file_name(tmpdir), transform_file=transform_file))
         except:
             if debug:
                 raise
@@ -1050,3 +1062,661 @@ def brailleShenandoah( parts, outdir, music_dir=shenandoah_musicdir, louistable=
                 raise
             problems.append(song)
     return problems
+
+
+# ---------------------------------------------------------------------------
+# 2025 edition: general song structures.
+# The words of every verse come from the plain text lyrics (2025-edition/lyrics), which
+# are complete. The lyrics in the MusicXML are only used to find where those words go:
+# each word written under the notes is matched to its place in the plain text, so it
+# does not matter which part, lyric line or repeat it is written under. Verses with no
+# words under the notes (or only some) are laid out like the verse that has the most.
+# Repeats are read from the MusicXML itself, where the engravers mostly wrote them as
+# text directions ("SH repeat dots", "SH repeat left", ...) rather than barlines, and the
+# song is expanded into the spans of written time in the order they are sung.
+
+repeat_start_directions = ('sh repeat dots', 'repeat dots', 'sh repeat right', 'sh repeat start')
+repeat_end_directions = ('sh repeat left', 'sh repeat end')
+repeat_both_directions = ('sh coincident repeat', 'sh repeat double')
+ending_signs = {1: brlP(2), 2: brlP(23), 3: brlP(25), 4: brlP(256)} # lower digits after a number sign
+lyric_label = re.compile(r'^(\d+\.|d\.\s?c\.|d\.\s?s\.|chorus\.?|fine\.?)\s*', re.IGNORECASE)
+time_tolerance = 1e-3
+
+
+def direction_kind( text):
+    """ 'start', 'end', 'both' (an end and a start) or None for the text of an other-direction """
+    text = ' '.join(text.lower().replace('musicxml importer:', '').split())
+    text = re.sub(r' (ftm|svg)$', '', text)
+    if text in repeat_both_directions: return 'both'
+    if text in repeat_end_directions: return 'end'
+    if text in repeat_start_directions: return 'start'
+    return None
+
+
+def read_structure( music_file):
+    """ the repeats, endings and D.C./D.S. of a MusicXML file, as times in quarter notes from
+    the start of the song (repeats as written). Returns a dict with
+      length: of the song
+      starts, ends: sets of times where a repeated section starts and ends
+      endings: list of (numbers, start, end), e.g. ({1}, 40.0, 44.0) for a first ending
+      dc, ds, segno, fine: times of D.C., D.S., the segno and Fine, or None
+      double_bars: set of times of double barlines
+    The repeat directions sit where the dots are, e.g. "SH repeat left" after the last note
+    of a measure is a repeat ending with that measure. Endings may be brackets or, in the
+    top part, just the numbers written as words """
+    root = ElementTree.parse(music_file).getroot()
+    result = {'starts': set(), 'ends': set(), 'endings': [], 'dc': None, 'ds': None,
+              'segno': None, 'fine': None, 'double_bars': set()}
+    offsets, lengths = [], []
+    bracket_endings = {} # numbers -> [start, end]
+    word_endings = {} # measure index -> number
+    for p, part in enumerate(root.findall('part')):
+        divisions, start = 1.0, 0.0
+        for i, measure in enumerate(part.findall('measure')):
+            if p > 0 and i < len(offsets):
+                start = offsets[i]
+            t, longest, barlines = 0.0, 0.0, []
+            for e in measure:
+                if e.tag == 'attributes' and e.findtext('divisions'):
+                    divisions = float(e.findtext('divisions'))
+                elif e.tag == 'note':
+                    if e.find('chord') is None and e.find('grace') is None and e.findtext('duration'):
+                        t += float(e.findtext('duration')) / divisions
+                elif e.tag in ('backup', 'forward') and e.findtext('duration'):
+                    t += (1 if e.tag == 'forward' else -1) * float(e.findtext('duration')) / divisions
+                elif e.tag == 'barline':
+                    barlines.append(e)
+                if e.tag in ('direction', 'sound'):
+                    time = start + t
+                    for d in e.iter('other-direction'):
+                        kind = direction_kind(d.text or '')
+                        if kind in ('start', 'both'): result['starts'].add(time)
+                        if kind in ('end', 'both'): result['ends'].add(time)
+                    for w in e.iter('words'):
+                        text = (w.text or '').strip().lower()
+                        if p == 0 and re.fullmatch(r'\(?\d\)?\.?', text):
+                            word_endings[i] = int(re.sub(r'\D', '', text))
+                        elif text.startswith('d.c'): result['dc'] = time
+                        elif text.startswith('d.s'): result['ds'] = time
+                        elif text.startswith('fine'): result['fine'] = time
+                    if any(True for _ in e.iter('segno')): result['segno'] = time
+                    for s in ([e] if e.tag == 'sound' else []) + list(e.iter('sound')):
+                        if s.get('dacapo') == 'yes': result['dc'] = time
+                        if s.get('dalsegno'): result['ds'] = time
+                        if s.get('fine'): result['fine'] = time
+                longest = max(longest, t)
+            if p == 0:
+                offsets.append(start)
+                lengths.append(longest)
+                start += longest
+            end = offsets[i] + lengths[i] if i < len(offsets) else start + longest
+            for b in barlines:
+                time = offsets[i] if b.get('location') == 'left' else end
+                repeat = b.find('repeat')
+                if repeat is not None:
+                    result['starts' if repeat.get('direction') == 'forward' else 'ends'].add(time)
+                ending = b.find('ending')
+                if ending is not None:
+                    numbers = frozenset(int(n) for n in re.findall(r'\d+', ending.get('number', '')))
+                    span = bracket_endings.setdefault(numbers, [offsets[i], end])
+                    if ending.get('type') == 'start': span[0] = min(span[0], offsets[i])
+                    else: span[1] = end
+                if b.findtext('bar-style') in ('light-light', 'light-heavy'):
+                    result['double_bars'].add(time)
+    result['length'] = offsets[-1] + lengths[-1] if offsets else 0.0
+    result['endings'] = [(set(n), a, b) for n, (a, b) in bracket_endings.items() if len(n) > 0]
+    if len(result['endings']) == 0 and len(word_endings) > 1:
+        indices = sorted(word_endings)
+        for j, i in enumerate(indices):
+            end = offsets[indices[j+1]] if j + 1 < len(indices) else offsets[i] + lengths[i]
+            result['endings'].append(({word_endings[i]}, offsets[i], end))
+    result['double_bars'].discard(result['length'])
+    return result
+
+
+def expand_structure( structure, max_spans=100):
+    """ the order a song is sung in, as a list of (start, end, pass, after D.C./D.S.) spans
+    of written time.
+    A repeated section is sung twice, or once for each of its endings, leaving out an
+    ending the other times. As usual in the Sacred Harp a repeat with no end repeats to
+    the end of the first ending, or of the song, and one with no start from the last
+    end of a repeat or the start. A D.C. (D.S.) goes back to the start (the segno) and,
+    without the repeats, ends at the Fine, else the first double bar or end of a repeat """
+    length = structure['length']
+    endings = sorted(structure['endings'], key=lambda e: e[1])
+    ends = set(t for t in structure['ends'] if t > time_tolerance)
+    # a forward repeat at the start of a later ending is left over from the engraving,
+    # unless a repeat ends after it
+    starts = sorted(t for t in structure['starts'] if t < length - time_tolerance and
+                    (not any(abs(a - t) < time_tolerance and min(n) > 1 for n, a, _ in endings) or any(e > t + time_tolerance for e in ends)))
+    for numbers, a, b in endings:
+        if 1 in numbers and not any(a < e <= b + time_tolerance for e in ends):
+            ends.add(b)
+    for i, s in enumerate(starts):
+        following = starts[i+1] if i + 1 < len(starts) else length
+        if not any(s < e <= following + time_tolerance for e in ends):
+            ends.add(following)
+    ends = sorted(ends)
+    def times_through(section, end):
+        return max([max(n) for n, a, _ in endings if section <= a <= end + time_tolerance] + [2])
+    spans = []
+    t, section, current_pass, done = 0.0, 0.0, 1, set()
+    stop_at, navigation = length, structure['dc'] is not None or structure['ds'] is not None
+    navigated = False
+    while len(spans) < max_spans:
+        if t >= stop_at - time_tolerance:
+            if not navigation:
+                break
+            navigation, navigated = False, True
+            t = structure['segno'] if structure['ds'] is not None and structure['segno'] is not None else 0.0
+            if structure['fine'] is not None and structure['fine'] > t:
+                stop_at = structure['fine']
+            else:
+                stop_at = min([x for x in set(structure['double_bars']) | set(ends) if x > t + time_tolerance] + [length])
+            done, current_pass = set(ends), max([max(n) for n, _, _ in endings] + [1])
+            continue
+        end = min([e for e in ends if t + time_tolerance < e <= stop_at + time_tolerance and e not in done], default=None)
+        start = min([s for s in starts if t + time_tolerance < s < stop_at - time_tolerance], default=None)
+        stop = min(x for x in (end, start, stop_at) if x is not None)
+        skip = [(a, b) for n, a, b in endings if t - time_tolerance <= a < stop - time_tolerance
+                and a > section + time_tolerance and current_pass not in n]
+        if skip:
+            a, b = skip[0]
+            if a > t + time_tolerance:
+                spans.append((t, a, current_pass, navigated))
+            t = b
+            if any(abs(s - b) < time_tolerance for s in starts):
+                section, current_pass = b, 1
+            continue
+        spans.append((t, stop, current_pass, navigated))
+        t = stop
+        if end is not None and abs(stop - end) < time_tolerance:
+            if current_pass < times_through(section, end):
+                current_pass += 1
+                t = section
+                continue
+            done.add(end)
+            section = end
+            if not any(abs(a - end) < time_tolerance for _, a, _ in endings):
+                current_pass = 1
+        if start is not None and abs(stop - start) < time_tolerance:
+            section, current_pass = start, 1
+    return spans
+
+
+def sung_atoms( part, key, spans, show_time_signature=False):
+    """ the notes and rests of the part in the order they are sung, as dicts with the time
+    (written, from the start of the song), length, music (its symbols), whether it is a rest,
+    tied from the note before or starts a bar, the span it is in and the words sung to it
+    (filled in later) """
+    measures = [(m.getOffsetBySite(part), m) for m in part.getElementsByClass(music21.stream.Measure)]
+    atoms, lastOctave = [], None
+    for s, (a, b, *_) in enumerate(spans):
+        first_in_span = True
+        for start, m in measures:
+            end = start + m.highestTime
+            if end <= a + time_tolerance or start >= b - time_tolerance:
+                continue
+            window = (a - start - time_tolerance, b - start - time_tolerance)
+            notes = {}
+            for n in m.flatten().notesAndRests:
+                notes.setdefault(n.offset, n)
+            pieces, lastOctave = braille_shapenote_bar(m, key, oldOctave=lastOctave, show_time_signature=show_time_signature,
+                                                       show_repeats=False, return_pieces=True, window=window)
+            for j, (offset, symbols) in enumerate(pieces):
+                n = notes.get(offset)
+                if n is None or len(symbols) == 0:
+                    continue
+                atoms.append({'time': start + offset, 'length': n.quarterLength, 'music': symbols,
+                              'rest': n.isRest, 'tied': n.tie is not None and n.tie.type in ('stop', 'continue'),
+                              'bar_start': j == 0 or first_in_span, 'span': s, 'pass': spans[s][2],
+                              'navigated': len(spans[s]) > 3 and spans[s][3], 'syllables': []})
+                first_in_span = False
+    return atoms
+
+
+def braille_written_part( part, key, structure, louistable='en-GB-g2.ctb', width=linewidth):
+    """ the part without words as written, with the repeats, endings and D.C./D.S. read by
+    read_structure, wrapped to width """
+    atoms = sung_atoms(part, key, [(0.0, structure['length'], 1, False)], show_time_signature=True)
+    if len(atoms) == 0:
+        return str(key) + '\n'
+    def at(time):
+        """ the atom starting at time, or the first after it """
+        return next((a for a in atoms if a['time'] > time - time_tolerance), atoms[-1])
+    def before(time):
+        """ the last atom starting before time """
+        return ([a for a in atoms if a['time'] < time - time_tolerance] or atoms[:1])[-1]
+    for numbers, a, _ in structure['endings']:
+        at(a)['music'] = brlP(3456) + ''.join(ending_signs.get(n, '') for n in sorted(numbers)) + at(a)['music']
+    for t in structure['starts']:
+        if t < structure['length'] - time_tolerance:
+            at(t)['music'] = brlP(238) + brlP(3678) + at(t)['music']
+    for t in structure['ends']:
+        before(t)['music'] += brlP(3678) + brlP(567)
+    for word in ('dc', 'ds'):
+        if structure[word] is not None:
+            before(structure[word] + time_tolerance)['music'] += louis.translateString([louistable], word[0] + '.' + word[1] + '.')
+    return str(key) + '\n' + '\n'.join(wrap_atoms(atoms, False, louistable, width)[0]) + '\n'
+
+
+def word_key( word):
+    """ the letters of a word, for matching words in the music to those in the lyrics """
+    return re.sub('[^a-z]', '', word.lower())
+
+
+def read_lyrics_text( lyrics_file):
+    """ the title and verses of a plain text lyrics file (2025-edition/lyrics). Stanzas are
+    separated by blank lines and may be labelled, e.g. [chorus], [verse 2 chorus],
+    [alto, bass] or [solos]. An unlabelled stanza starts a verse unless it follows one
+    for particular parts (or solos), when it carries that verse on; a chorus is sung after
+    every verse, a [verse n chorus] after verse n. Each verse is a list of words, as dicts
+    with word, key, id (stanza, word in the stanza), line (stanza, line in the stanza) and
+    parts (those that sing it, None for all), in the order they are sung """
+    with open(lyrics_file) as f:
+        lines = f.read().splitlines()
+    title = lines[0].lstrip('#').strip()
+    stanzas, current = [], None
+    for line in lines[1:]:
+        line = line.strip()
+        if len(line) == 0:
+            current = None
+            continue
+        label = re.fullmatch(r'\[(.*)\]', line)
+        if label or current is None:
+            text = label.group(1).lower() if label else ''
+            verse = re.search(r'verse (\d+)', text)
+            current = {'label': text, 'lines': [], 'chorus': 'chorus' in text,
+                       'verse': int(verse.group(1)) if verse else None,
+                       'parts': [p for p in ('treble', 'alto', 'tenor', 'bass') if p in text] or None}
+            stanzas.append(current)
+            if label:
+                continue
+        current['lines'].append(line.split())
+    def words(s):
+        result = []
+        for l, line in enumerate(stanzas[s]['lines']):
+            for w in line:
+                result.append({'word': w, 'key': word_key(w), 'id': (s, len(result)), 'line': (s, l),
+                               'parts': stanzas[s]['parts']})
+        return result
+    verses = [] # lists of stanza numbers
+    for s, stanza in enumerate(stanzas):
+        if stanza['chorus'] or len(stanza['lines']) == 0:
+            continue
+        follows_special = s > 0 and stanzas[s-1]['label'] != '' and not stanzas[s-1]['chorus']
+        if len(verses) > 0 and (stanza['label'] != '' or follows_special):
+            verses[-1].append(s)
+        else:
+            verses.append([s])
+    result = []
+    for v, verse in enumerate(verses):
+        choruses = [s for s, stanza in enumerate(stanzas) if stanza['chorus'] and stanza['verse'] in (None, v + 1)]
+        result.append([w for s in verse + choruses for w in words(s)])
+    return title, result
+
+
+def xml_words( piece):
+    """ the words written under the notes of each part: for each part a list of lines (one
+    per lyric number) of words as dicts with key, times (of each syllable, from the start of
+    the song) and elided, True for the second and later words written under one note
+    (e.g. a whole line of a later verse), which say what is sung but not where """
+    result = []
+    for part in piece.parts:
+        lines = defaultdict(list)
+        for n in part.flatten().notes:
+            for l in n.lyrics:
+                components = l.components if l.isComposite and l.components else [l]
+                texts = [(lyric_label.sub('', c.text or ''), c.syllabic) for c in components]
+                texts = [(text, syllabic) for text, syllabic in texts if len(word_key(text)) > 0]
+                line = lines[l.number or 1]
+                for c, (text, syllabic) in enumerate(texts):
+                    if len(line) > 0 and line[-1]['open']:
+                        word = line[-1]
+                        word['text'] += text
+                        if c == 0:
+                            word['times'].append(n.offset)
+                    else:
+                        word = {'text': text, 'times': [n.offset], 'elided': c > 0}
+                        line.append(word)
+                    word['open'] = syllabic in ('begin', 'middle')
+        for line in lines.values():
+            for word in line:
+                word['key'] = word_key(word['text'])
+        result.append([lines[number] for number in sorted(lines)])
+    return result
+
+
+def align_to_text( words, tokens):
+    """ the index into tokens (the words of the lyrics) of each of the words written under
+    the notes in one lyric line, None where it is not found. The words of a lyric line are
+    mostly consecutive in the lyrics, so the alignment with fewest jumps is chosen """
+    where = defaultdict(list)
+    for j, t in enumerate(tokens):
+        where[t['key']].append(j)
+    jump, back, miss = 1.0, 1.2, 1.5 # going back is less likely than on
+    previous = {None: (0.0, None)} # matched token -> (cost, token matched by the word before)
+    history = []
+    for i, w in enumerate(words):
+        best_state = min(previous, key=lambda s: previous[s][0])
+        best = previous[best_state][0]
+        current = {None: (best + miss, best_state)}
+        for j in where.get(w['key'], []):
+            cost = 0.0 if i == 0 else (jump if best_state is None or j > best_state else back)
+            options = [(best + cost, best_state)]
+            if j - 1 in previous:
+                options.append((previous[j-1][0], j - 1))
+            current[j] = min(options, key=lambda o: o[0])
+        history.append(current)
+        previous = current
+    state = min(previous, key=lambda s: previous[s][0])
+    result = [None] * len(words)
+    for i in range(len(words) - 1, -1, -1):
+        result[i] = state
+        state = history[i][state][1]
+    return result
+
+
+def anchor_words( piece, verses):
+    """ the words written under the notes, as a list per part of dicts with times (of the
+    syllables), token (id of the word in the lyrics, None if not found), key, elided, line
+    (part and lyric line it is written in) and index (in that line) """
+    tokens = {}
+    for verse in verses:
+        for w in verse:
+            tokens.setdefault(w['id'], w)
+    tokens = list(tokens.values())
+    result = []
+    for q, lines in enumerate(xml_words(piece)):
+        anchors = []
+        for number, line in enumerate(lines):
+            for index, (word, j) in enumerate(zip(line, align_to_text(line, tokens))):
+                anchors.append({'times': word['times'], 'token': tokens[j]['id'] if j is not None else None,
+                                'key': word['key'], 'elided': word['elided'], 'line': (q, number), 'index': index})
+        result.append(anchors)
+    return result
+
+
+def candidates_at( anchors, part_number, atom):
+    """ the anchored words that can be sung to atom, as (part, word): those of the part
+    starting with it, and those of other parts starting while it sounds """
+    if atom['rest'] or atom['tied']:
+        return []
+    result = []
+    for q, words in enumerate(anchors):
+        for w in words:
+            if w['elided']:
+                continue
+            onset = w['times'][0]
+            if q == part_number and abs(onset - atom['time']) < time_tolerance:
+                result.append((q, w))
+            elif q != part_number and atom['time'] - time_tolerance <= onset < atom['time'] + atom['length'] - time_tolerance:
+                result.append((q, w))
+    return result
+
+
+def follow_text( atoms, anchors, part_number, verses, first_verse):
+    """ walks through the sung notes of a part matching words written under them (or under
+    other parts) to the words of verse first_verse, in order. Words can be passed over
+    (where they are not written under the notes) but no more than there are notes for.
+    Words are sung again (going back in the lyrics) where the part's own words say so, or
+    those of the part it takes its words from when it has none; also on going back for
+    a repeat where the same words are written once. Where the verse runs on into the next
+    in the music (an anthem written as stanzas) the verses are joined.
+    returns the words sung (a list of tokens), the number of verses used and the anchors,
+    a list of (atom index, index into the words) """
+    words, verse_ends = [], []
+    for verse in verses[first_verse:]:
+        words += verse
+        verse_ends.append(len(words))
+    positions, key_positions = defaultdict(list), defaultdict(list)
+    for i, w in enumerate(words):
+        positions[w['id']].append(i)
+        key_positions[w['key']].append(i)
+    candidates = [candidates_at(anchors, part_number, a) for a in atoms]
+    has_own = len(anchors[part_number]) > 0
+    allowed_end, used_verses = verse_ends[0], 1
+    k, k_at, k_last, result, notes_since, donor = 0, {}, {}, [], 0, None
+    def trusted(q):
+        """ whether the words of part q can say a phrase is sung again """
+        return q == part_number or (not has_own and q == donor)
+    def forward(i, low, high, by_key=False, words=None):
+        high = min(high, low + notes_since + 3)
+        return sorted(((p, q != part_number, q, w) for q, w in (candidates[i] if words is None else words)
+                       if not by_key or trusted(q)
+                       for p in (key_positions[w['key']] if by_key else positions[w['token']]) if low <= p < high),
+                      key=lambda f: f[:3])
+    last = None # the last word found under the notes
+    for i, atom in enumerate(atoms):
+        if i > 0 and atom['span'] != atoms[i-1]['span'] and atom['time'] < atoms[i-1]['time'] and atom['time'] in k_at:
+            # going back for a repeat: the same words again if no others are written,
+            # after a D.C. those of the last time through
+            again = k_last[atom['time']] if atom['navigated'] else k_at[atom['time']]
+            ahead = [j for j in range(i, len(atoms)) if atoms[j]['span'] == atom['span']][:8]
+            if not any(forward(j, k, allowed_end) for j in ahead) and any(forward(j, again, k) for j in ahead):
+                k = again
+        k_at.setdefault(atom['time'], k)
+        k_last[atom['time']] = k
+        # first the next word of the lyric line being followed, which may be sung again
+        following = [(q, w) for q, w in candidates[i] if last is not None and
+                     w['line'] == last['line'] and w['index'] == last['index'] + 1]
+        found = forward(i, k, allowed_end, words=following) or forward(i, k, allowed_end, by_key=True, words=following)
+        if len(found) == 0 and len(following) > 0:
+            back = sorted(((-p, q, w) for q, w in following for p in positions[w['token']] + key_positions[w['key']] if p < k),
+                          key=lambda f: f[:2])
+            found = [(-p, q != part_number, q, w) for p, q, w in back][:1]
+        if len(found) == 0:
+            found = forward(i, k, allowed_end)
+        if len(found) == 0 and k >= allowed_end:
+            # the words have run out but the music goes on: words of the verse sung again
+            back = sorted(((q != part_number, -p, q, w) for q, w in candidates[i] for p in positions[w['token']] if p < k),
+                          key=lambda f: f[:3])
+            found = [(-p, other, q, w) for other, p, q, w in back][:1]
+        if len(found) == 0 and k >= allowed_end and used_verses < len(verse_ends):
+            found = forward(i, k, min(k + 3, verse_ends[used_verses]))
+            if len(found) > 0:
+                allowed_end = verse_ends[used_verses]
+                used_verses += 1
+        if len(found) == 0:
+            # the same word close by, where a phrase sung twice was matched to the wrong one
+            found = forward(i, k, allowed_end, by_key=True)
+        if len(found) > 0:
+            p, _, q, last = found[0]
+            result.append((i, p))
+            k, notes_since = p + 1, 0
+            if q != part_number:
+                donor = q
+        elif not atom['rest'] and not atom['tied']:
+            notes_since += 1
+    return words[:allowed_end], used_verses, result
+
+
+def place_words( atoms, words, gap, region, slots):
+    """ puts the words of gap (indices into words) on the atoms of region, which has none
+    of its own, in proportion to their estimated syllables. slots maps atom index to the
+    line of words that a reference verse sings there; where the gap and the slots in region
+    have the same number of lines they are matched line by line """
+    if len(gap) == 0:
+        return
+    def lines_of(items, line):
+        groups = []
+        for item in items:
+            if len(groups) == 0 or line(item) != line(groups[-1][-1]):
+                groups.append([])
+            groups[-1].append(item)
+        return groups
+    def notes_in(items):
+        return [i for i in items if not atoms[i]['rest'] and not atoms[i]['tied']]
+    gap_lines = lines_of(gap, lambda g: words[g]['line'])
+    region_slots = [i for i in region if i in slots]
+    slot_lines = lines_of(region_slots, lambda i: slots[i])
+    if len(slot_lines) != len(gap_lines):
+        slot_lines, gap_lines = [region_slots], [gap]
+    # where too few syllables are written under the notes, use every note of the line
+    starts = [region[0]] + [line[0] for line in slot_lines[1:]] + [region[-1] + 1]
+    for n, line_words in enumerate(gap_lines):
+        total = sum(estimated_syllables(words[g]['word']) for g in line_words)
+        if len(slot_lines[n]) < total:
+            notes = notes_in([i for i in region if starts[n] <= i < starts[n+1]])
+            if len(notes) > len(slot_lines[n]):
+                slot_lines[n] = notes
+    for line_slots, line_words in zip(slot_lines, gap_lines):
+        if len(line_slots) == 0:
+            line_slots = notes_in(region) or [region[0]]
+        total = sum(estimated_syllables(words[g]['word']) for g in line_words)
+        done = 0
+        for g in line_words:
+            atom = atoms[line_slots[min(len(line_slots) - 1, done * len(line_slots) // total)]]
+            atom['syllables'].append((None, words[g]['line'], words[g]['word'], 'single'))
+            done += estimated_syllables(words[g]['word'])
+
+
+def syllable_onsets( atoms, anchors, part_number):
+    """ the atoms on which a syllable is written, under the part itself or, if it has no
+    words of its own, under another part while the atom sounds """
+    own = len(anchors[part_number]) > 0
+    times = sorted(t for q, words in enumerate(anchors) if (q == part_number) == own
+                   for w in words if not w['elided'] for t in w['times'])
+    result = set()
+    for i, a in enumerate(atoms):
+        if a['rest'] or a['tied']:
+            continue
+        end = a['time'] + (time_tolerance if own else a['length'] - time_tolerance)
+        if any(a['time'] - time_tolerance <= t < end for t in times):
+            result.add(i)
+    return result
+
+
+def lay_out_verse( atoms, words, found, slots):
+    """ copies of atoms with the words on them: those found under the notes where they were
+    found, the rest spread over the notes between them (see place_words). Where the words
+    go back for a repeat, the line being sung is finished first.
+    returns the atoms and counts of words found and placed between """
+    atoms = [dict(a, syllables=[]) for a in atoms]
+    occupied = set()
+    for i, p in found:
+        atoms[i]['syllables'].append((None, words[p]['line'], words[p]['word'], 'single'))
+        occupied.add(i)
+    filled, reached = 0, -1
+    bounds = [(-1, -1)] + found + [(len(atoms), len(words))]
+    for (ia, pa), (ib, pb) in zip(bounds[:-1], bounds[1:]):
+        reached = max(reached, pa)
+        if ib == len(atoms) and pa < reached:
+            # the end of words sung again: finish the line, then any words never sung
+            line = words[pa]['line']
+            gap = [p for p in range(pa + 1, len(words)) if words[p]['line'] == line and p <= reached]
+            gap += list(range(reached + 1, len(words)))
+            region = [i for i in range(ia + 1, ib) if i not in occupied] or [ia]
+            place_words(atoms, words, gap, region, slots)
+            filled += len(gap)
+            continue
+        if pb <= pa:
+            if not any(atoms[i]['time'] < atoms[i-1]['time'] for i in range(max(ia + 1, 1), min(ib + 1, len(atoms)))):
+                continue # words sung again
+            # going back for a repeat: the rest of the line goes before
+            line = words[pa]['line']
+            pb = next((p for p in range(pa + 1, len(words)) if words[p]['line'] != line), len(words))
+            ib = next((i for i in range(ia + 1, ib + 1) if atoms[i]['span'] != atoms[ia]['span']), ib)
+        if pb <= pa + 1:
+            continue
+        gap = list(range(pa + 1, pb))
+        region = [i for i in range(ia + 1, ib) if i not in occupied] or ([ia] if ia >= 0 else [max(ib - 1, 0)])
+        place_words(atoms, words, gap, region, slots)
+        filled += len(gap)
+    return atoms, len(found), filled
+
+
+def verse_slots( atoms, onsets):
+    """ the line of words sung on each atom of onsets, in a laid out verse """
+    result, line = {}, None
+    for i, a in enumerate(atoms):
+        if len(a['syllables']) > 0:
+            line = a['syllables'][0][1]
+        if i in onsets and line is not None:
+            result[i] = line
+    return result
+
+
+def verse_lines( atoms, louistable, width, prefix):
+    """ the braille lines of a verse: a line of words then the music it is sung to, starting
+    afresh with each line of the lyrics and where the music goes back for a repeat """
+    result, chunk, line = [], [], None
+    for i, a in enumerate(atoms):
+        new_line = len(a['syllables']) > 0 and a['syllables'][0][1] != line and line is not None
+        going_back = i > 0 and a['span'] != atoms[i-1]['span'] and a['time'] < atoms[i-1]['time']
+        if (new_line or going_back) and len(chunk) > 0:
+            lines, prefix = wrap_atoms(chunk, False, louistable, width, prefix)
+            result += lines
+            chunk = []
+        if len(a['syllables']) > 0:
+            line = a['syllables'][-1][1]
+        chunk.append(a)
+    if len(chunk) > 0:
+        result += wrap_atoms(chunk, False, louistable, width, prefix)[0]
+    return result
+
+
+def part_verses( piece, part_number, key, spans, verses, anchors, part_name=None):
+    """ the verses of a part laid out on its sung notes: a list of (verse numbers, atoms,
+    words found, words placed between). part_name (e.g. bass) picks out the words of
+    stanzas for particular parts; by default the name in the file """
+    atoms = sung_atoms(piece.parts[part_number], key, spans)
+    if part_name is None:
+        part_name = str(piece.parts[part_number].partName)
+    part_name = part_name.strip('[] ').lower()
+    def for_part(verse):
+        return [w for w in verse if w['parts'] is None or part_name not in ('treble', 'alto', 'tenor', 'bass')
+                or part_name in w['parts']]
+    verses = [for_part(v) for v in verses]
+    followed, v = [], 0
+    while v < len(verses):
+        words, used, found = follow_text(atoms, anchors, part_number, verses, v)
+        followed.append((list(range(v + 1, v + used + 1)), words, found))
+        v += used
+    # lay out the verse with most words found first, so the others can follow it
+    order = sorted(range(len(followed)), key=lambda f: -len(followed[f][2]))
+    onsets = syllable_onsets(atoms, anchors, part_number)
+    slots, result = {}, [None] * len(followed)
+    for f in order:
+        numbers, words, found = followed[f]
+        laid_out, n_found, n_filled = lay_out_verse(atoms, words, found, slots)
+        if len(slots) == 0:
+            slots = verse_slots(laid_out, onsets)
+        result[f] = (numbers, laid_out, n_found, n_filled)
+    return result
+
+
+def braillesong_general( lyrics_file, music_file, parts, louistable='en-GB-g2.ctb', width=linewidth,
+                         tmp_file=tmpdir + 'fasola_tmp.musicxml', transform_file=transform_file, report=None):
+    """ the title then, for each part, its music as written followed by each verse as
+    alternating lines of words and the music they are sung to, repeats expanded; then the
+    words. Works from the structure of the music (read_structure) and the plain text lyrics
+    (read_lyrics_text), so any arrangement of words under the notes will do.
+    report, if a list, gets a dict per part and verse with the words found under the notes
+    and placed between them """
+    title, lyrics = braillewords(lyrics_file, louistable=louistable, width=width)
+    _, verses = read_lyrics_text(lyrics_file)
+    structure = read_structure(music_file)
+    spans = expand_structure(structure)
+    preprocess_shapenote_file(music_file, tmp_file, transform_file)
+    piece = music21.converter.parse(tmp_file, forceSource=True)
+    key = key_from_file_or_piece(piece)
+    anchors = anchor_words(piece, verses)
+    result = title + '\n'
+    for p in parts:
+        try:
+            part_number = find_part_number(piece, p)
+        except KeyError:
+            continue # e.g. no alto in a three part song
+        if part_number >= len(piece.parts):
+            continue
+        result += '  ' + louis.translateString([louistable], p) + ':\n'
+        result += braille_written_part(piece.parts[part_number], key, structure, louistable=louistable, width=width)
+        for numbers, atoms, n_found, n_filled in part_verses(piece, part_number, key, spans, verses, anchors, part_name=p):
+            prefix = '-'.join(str(n) for n in [numbers[0], numbers[-1]][:len(set([numbers[0], numbers[-1]]))]) + '.'
+            result += '\n'.join(verse_lines(atoms, louistable, width, prefix)) + '\n'
+            if report is not None:
+                report.append({'part': p, 'verses': numbers, 'found': n_found, 'filled': n_filled,
+                               'notes': sum(1 for a in atoms if not a['rest'])})
+    result += lyrics
+    return '\n'.join([s for s in result.splitlines() if len(s.strip())])
