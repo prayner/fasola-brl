@@ -569,6 +569,12 @@ def extract_lyrics( stream, line_number=1):
             result.append(lyric.text)
     return result
 
+def join_sections(sections):
+    """ removes lines with only whitespace within each section and separates
+    the non-empty sections by a blank line """
+    sections = ['\n'.join([s for s in section.splitlines() if len(s.strip())]) for section in sections]
+    return '\n\n'.join([s for s in sections if len(s)])
+
 def braillesong_line_by_line( lyrics_file, music_file, parts,
                               louistable='en-GB-g2.ctb',
                               width=32,
@@ -583,6 +589,7 @@ def braillesong_line_by_line( lyrics_file, music_file, parts,
     piece = music21.converter.parse(tmp_file,forceSource=True)
     canonicalize_shapenote_piece(piece, )
     key = key_from_file_or_piece( piece)
+    line_by_lines = u''
     for p in parts:
         part_number = find_part_number(piece, p)
         partstring = '  '+louis.translateString( [louistable], p)+':\n'
@@ -596,12 +603,11 @@ def braillesong_line_by_line( lyrics_file, music_file, parts,
                 piece,part_number,key,bars_per_line=4)
             if len(line_by_line) > 0:
                 print(f'success with {title}')
-            result += line_by_line
+            line_by_lines += line_by_line
         except:
             pass
-    result += lyrics
-    result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
-    return result
+    # music, lyrics then each verse line by line, separated by blank lines
+    return join_sections([result, lyrics] + line_by_lines.split('\n\n'))
 
 def braille_shapenote_part_line_by_line( piece, part_name, key, bars_per_line):
     """ rough approach is to only do this for simple_multi_verse,
@@ -1703,6 +1709,7 @@ def braillesong_general( lyrics_file, music_file, parts, louistable='en-GB-g2.ct
     key = key_from_file_or_piece(piece)
     anchors = anchor_words(piece, verses)
     result = title + '\n'
+    verse_music = []
     for p in parts:
         try:
             part_number = find_part_number(piece, p)
@@ -1714,9 +1721,9 @@ def braillesong_general( lyrics_file, music_file, parts, louistable='en-GB-g2.ct
         result += braille_written_part(piece.parts[part_number], key, structure, louistable=louistable, width=width)
         for numbers, atoms, n_found, n_filled in part_verses(piece, part_number, key, spans, verses, anchors, part_name=p):
             prefix = '-'.join(str(n) for n in [numbers[0], numbers[-1]][:len(set([numbers[0], numbers[-1]]))]) + '.'
-            result += '\n'.join(verse_lines(atoms, louistable, width, prefix)) + '\n'
+            verse_music.append('\n'.join(verse_lines(atoms, louistable, width, prefix)))
             if report is not None:
                 report.append({'part': p, 'verses': numbers, 'found': n_found, 'filled': n_filled,
                                'notes': sum(1 for a in atoms if not a['rest'])})
-    result += lyrics
-    return '\n'.join([s for s in result.splitlines() if len(s.strip())])
+    # music, lyrics then each verse with its music, separated by blank lines
+    return join_sections([result, lyrics] + verse_music)
