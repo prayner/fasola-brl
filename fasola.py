@@ -1863,3 +1863,61 @@ def braillesong_general( lyrics_file, music_file, parts, louistable='en-GB-g2.ct
                                'notes': sum(1 for a in atoms if not a['rest'])})
     # music, lyrics then each verse with its music, separated by blank lines
     return join_sections([result, lyrics] + verse_music)
+
+
+# ---------------------------------------------------------------------------
+# Choosing the book. The settings of each book; the globals above stay for
+# code that uses them directly.
+books = {
+    'sacred-harp': {'lyrics_dir': lyricsdir, 'title_file': titlefile, 'music_dir': musicdir,
+                    'transform_file': transform_file},
+    'shenandoah': {'music_dir': shenandoah_musicdir},
+}
+default_book = 'sacred-harp'
+book_variable = 'FASOLA_BOOK' # environment variable naming the book
+
+
+def choose_book( book=None):
+    """ the name of the book: book if given, else the FASOLA_BOOK environment variable,
+    else the Sacred Harp """
+    if book is None:
+        book = os.environ.get(book_variable) or default_book
+    book = book.lower()
+    if book not in books:
+        raise ValueError(f'unknown book {book!r}, choose one of {", ".join(books)}')
+    return book
+
+
+def brailleBook( parts, outdir, book=None, song_list=None, louistable='en-GB-g2.ctb', debug=False):
+    """ brailles the songs of a book (see choose_book) into outdir, every song or those
+    in song_list: song numbers (e.g. 347.1) for the Sacred Harp, music file names without
+    extension (e.g. CH144_WalkWithGod) for the Shenandoah Harmony.
+    returns the songs that failed """
+    book = choose_book(book)
+    settings = books[book]
+    os.makedirs(outdir, exist_ok=True)
+    if book == 'shenandoah':
+        return brailleShenandoah(parts, outdir, music_dir=settings['music_dir'], louistable=louistable,
+                                 song_list=song_list, debug=debug)
+    if song_list is None:
+        return brailleAll(settings['lyrics_dir'], settings['title_file'], settings['music_dir'], parts, outdir,
+                          louistable=louistable, transform_file=settings['transform_file'], debug=debug)
+    return brailleList(song_list, settings['lyrics_dir'], settings['title_file'], settings['music_dir'], parts,
+                       outdir, louistable=louistable, transform_file=settings['transform_file'], debug=debug)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='braille shape note songbooks')
+    parser.add_argument('--book', choices=sorted(books),
+                        help=f'the book to braille (default: ${book_variable}, else {default_book})')
+    parser.add_argument('--parts', nargs='+', default=['bass'], help='parts to braille (default: bass)')
+    parser.add_argument('--outdir', required=True, help='directory for the brailled songs')
+    parser.add_argument('--songs', nargs='+', help='only these songs (see brailleBook)')
+    parser.add_argument('--louistable', default='en-GB-g2.ctb', help='liblouis table for the words')
+    parser.add_argument('--debug', action='store_true', help='stop at the first song that fails')
+    args = parser.parse_args()
+    book = choose_book(args.book)
+    problems = brailleBook(args.parts, args.outdir, book=book, song_list=args.songs,
+                           louistable=args.louistable, debug=args.debug)
+    print(f'{book}: {len(problems)} songs failed' + (': ' + ' '.join(problems) if problems else ''))
