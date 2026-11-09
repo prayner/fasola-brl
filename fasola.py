@@ -575,6 +575,11 @@ def join_sections(sections):
     sections = ['\n'.join([s for s in section.splitlines() if len(s.strip())]) for section in sections]
     return '\n\n'.join([s for s in sections if len(s)])
 
+def word_key( word):
+    """ the letters of a word, for comparing words regardless of case and punctuation """
+    return re.sub('[^a-z]', '', word.lower())
+
+
 def braillesong_line_by_line( lyrics_file, music_file, parts,
                               louistable='en-GB-g2.ctb',
                               width=32,
@@ -1024,18 +1029,6 @@ def braille_shenandoah_part_line_by_line( piece, part_number, key, louistable='e
     return result
 
 
-def join_sections(sections):
-    """ removes lines with only whitespace within each section and separates
-    the non-empty sections by a blank line """
-    sections = ['\n'.join([s for s in section.splitlines() if len(s.strip())]) for section in sections]
-    return '\n\n'.join([s for s in sections if len(s)])
-
-
-def word_key( word):
-    """ the letters of a word, for comparing words regardless of case and punctuation """
-    return re.sub('[^a-z]', '', word.lower())
-
-
 def syllables_to_words( syllables):
     """ joins syllables (as from part_syllables) into a list of words, without hyphens,
     e.g. Ho- ly Spir- it -> Holy Spirit. A syllable starting with a hyphen also carries
@@ -1452,11 +1445,6 @@ def braille_written_part( part, key, structure, louistable='en-GB-g2.ctb', width
         if structure[word] is not None:
             before(structure[word] + time_tolerance)['music'] += louis.translateString([louistable], word[0] + '.' + word[1] + '.')
     return str(key) + '\n' + '\n'.join(wrap_atoms(atoms, False, louistable, width)[0]) + '\n'
-
-
-def word_key( word):
-    """ the letters of a word, for matching words in the music to those in the lyrics """
-    return re.sub('[^a-z]', '', word.lower())
 
 
 def read_lyrics_text( lyrics_file):
