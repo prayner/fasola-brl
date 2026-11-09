@@ -752,10 +752,11 @@ def measure_syllables( all_syllables, all_spans, part_number, verse, start, end)
     return best
 
 
-def clean_markup_text( text):
-    """ tidies the spacing used to place markup lyrics under notes, e.g. 'ach - ing  void' -> 'ach-ing void' """
+def clean_markup_text( text, join_syllables=False):
+    """ tidies the spacing used to place markup lyrics under notes, e.g. 'ach - ing  void' -> 'ach-ing void',
+    or with join_syllables 'aching void' """
     text = text.replace('__', ' ')
-    text = re.sub(r'\s*-\s*-?\s*', '-', text) if ' - ' in text or '- ' in text else text
+    text = re.sub(r'\s*-\s*-?\s*', '' if join_syllables else '-', text) if ' - ' in text or '- ' in text else text
     return ' '.join(text.split())
 
 
@@ -767,7 +768,8 @@ def markup_phrases( piece):
     spacing and line breaks) with a known verse, else each such part's texts are
     taken as a further verse.
     A right-aligned text ends at the note it is attached to, others start there and
-    run to the next text of the verse """
+    run to the next text of the verse. Each phrase also has a fourth entry, the text
+    with its syllables joined into words (for the lyrics) """
     tracks = {} # (part number, column line) -> list of [anchor, end of anchor note, right aligned, text, verse]
     for p, part in enumerate(piece.parts):
         note_ends = {n.offset: n.offset + n.quarterLength for n in part.flatten().notesAndRests}
@@ -775,14 +777,14 @@ def markup_phrases( piece):
             anchor = t.getOffsetInHierarchy(part)
             # lines of a text column are verses if labelled, or if that column line
             # had a verse before; otherwise they continue the line above
-            lines = []
+            lines = [] # (text, text with syllables joined into words)
             for line_number, line in enumerate(t.content.split('\n')):
-                text = clean_markup_text(line)
+                text, joined = clean_markup_text(line), clean_markup_text(line, join_syllables=True)
                 if len(lines) > 0 and not re.match(r'\d+\.', text) and (p, len(lines)) not in tracks:
-                    lines[-1] = (lines[-1] + ' ' + text).strip()
+                    lines[-1] = ((lines[-1][0] + ' ' + text).strip(), (lines[-1][1] + ' ' + joined).strip())
                 else:
-                    lines.append(text)
-            for line_number, text in enumerate(lines):
+                    lines.append((text, joined))
+            for line_number, (text, joined) in enumerate(lines):
                 if not re.search('[A-Za-z]{2}', text) or text.lower() in navigation_words:
                     continue
                 label = re.match(r'(\d+)\.\s*', text)
@@ -790,7 +792,8 @@ def markup_phrases( piece):
                 verse = int(label.group(1)) if label else (track[-1][4] if track else None)
                 if label:
                     text = text[label.end():]
-                track.append([anchor, note_ends.get(anchor, anchor), t.style.justify == 'right', text, verse])
+                    joined = re.sub(r'^\d+\.\s*', '', joined)
+                track.append([anchor, note_ends.get(anchor, anchor), t.style.justify == 'right', text, verse, joined])
     def letters(text):
         return re.sub('[^a-z]', '', text.lower())
     known = {letters(entry[3]): entry[4] for track in tracks.values() for entry in track if entry[4] is not None}
@@ -823,7 +826,7 @@ def markup_phrases( piece):
     for verse in result:
         for p, entries in result[verse].items():
             entries.sort(key=lambda e: e[0])
-            phrases = [[e[0] if not e[2] else None, e[1] if e[2] else None, e[3]] for e in entries]
+            phrases = [[e[0] if not e[2] else None, e[1] if e[2] else None, e[3], e[5]] for e in entries]
             for i, phrase in enumerate(phrases):
                 if phrase[0] is None: # right aligned: starts where the last phrase ended
                     if i == 0:
@@ -973,7 +976,8 @@ def braille_shenandoah_part_line_by_line( piece, part_number, key, louistable='e
     with repeats expanded and without time signatures. Lines end where a line of
     music (system) ends, marked by system_end, and where the music goes back; where the
     verse is written as text under the notes, a line also ends with each phrase.
-    Lines are wrapped to width, breaking words and music at the same note """
+    Lines are wrapped to width, breaking words and music at the same note.
+    Verses are separated by a blank line """
     part = piece.parts[part_number]
     measures = expanded_measures(part)
     ends = system_ends(part)
@@ -1016,6 +1020,144 @@ def braille_shenandoah_part_line_by_line( piece, part_number, key, louistable='e
                 finish(True)
             previous = index
         finish(True)
+        result += '\n'
+    return result
+
+
+def join_sections(sections):
+    """ removes lines with only whitespace within each section and separates
+    the non-empty sections by a blank line """
+    sections = ['\n'.join([s for s in section.splitlines() if len(s.strip())]) for section in sections]
+    return '\n\n'.join([s for s in sections if len(s)])
+
+
+def word_key( word):
+    """ the letters of a word, for comparing words regardless of case and punctuation """
+    return re.sub('[^a-z]', '', word.lower())
+
+
+def syllables_to_words( syllables):
+    """ joins syllables (as from part_syllables) into a list of words, without hyphens,
+    e.g. Ho- ly Spir- it -> Holy Spirit. A syllable starting with a hyphen also carries
+    on the word before, unless that word is finished and already ends with it, as where
+    a second ending repeats the end of the first (a-bove. -bove.) """
+    words, open_word = [], False
+    for _, _, syllable, syllabic in syllables:
+        text = ' '.join(syllable.split())
+        carries_on = len(words) > 0 and (open_word or text.startswith('-'))
+        repeated = len(words) > 0 and not open_word and text.startswith('-') and words[-1].endswith(text.strip('-'))
+        open_word = syllabic in ('begin', 'middle') or text.endswith('-')
+        text = text.strip('-')
+        if repeated:
+            continue
+        if carries_on:
+            words[-1] += text
+        else:
+            words.append(text)
+    return ' '.join(words).split()
+
+
+def part_verse_words( syllables, phrases, verse):
+    """ the words of verse written under one part, in the order they are written: its
+    syllables (from part_syllables) joined into words and its phrases written as text
+    (from markup_phrases, the part's list for verse). Where there are two notes at once
+    (e.g. a divided last note) only the first syllable is kept, and D.C. and D.S. are
+    left out """
+    onsets = {}
+    for s in syllables:
+        if s[1] == verse:
+            onsets.setdefault(s[0], s)
+    events = sorted([(s[0], 0, s) for s in onsets.values()] +
+                    [(ph[0], 1, ph) for ph in phrases], key=lambda e: e[:2])
+    words, run = [], []
+    for _, kind, item in events:
+        if kind == 0:
+            run.append(item)
+            continue
+        words += syllables_to_words(run) + item[3].split()
+        run = []
+    words += syllables_to_words(run)
+    return [w for w in words if w.lower() not in ('d.c.', 'd.s.')]
+
+
+def drop_repeated_phrases( words, shortest=3):
+    """ removes a run of at least shortest words sung again straight after itself, e.g.
+    'Whence all our blessings flow? Whence all our blessings flow?' """
+    keys = [word_key(w) for w in words]
+    i = 0
+    while i < len(words):
+        for length in range((len(words) - i) // 2, shortest - 1, -1):
+            if keys[i:i+length] == keys[i+length:i+2*length]:
+                # keep the punctuation at the end of the second time
+                words[i+length-1] = words[i+2*length-1]
+                del words[i+length:i+2*length], keys[i+length:i+2*length]
+                i = 0 # a longer repeat may now be next to itself
+                break
+        else:
+            i += 1
+    return words
+
+
+def verse_words( all_syllables, phrases_by_verse, verse):
+    """ the words of a verse for the lyrics. Each part may have only some of them, or sing
+    some more than once, so those of the part with most of the different words of the verse
+    are used, of those the one with fewest words, without phrases sung twice in a row """
+    candidates = []
+    for q, syllables in enumerate(all_syllables):
+        words = part_verse_words(syllables, phrases_by_verse.get(verse, {}).get(q, []), verse)
+        if len(words) > 0:
+            words = drop_repeated_phrases(words)
+            if len(words) > 1 and word_key(words[-1]) == word_key(words[-2]):
+                words.pop() # the last word written again in a second ending
+            candidates.append(words)
+    if len(candidates) == 0:
+        return []
+    every = set(word_key(w) for c in candidates for w in c)
+    return max(candidates, key=lambda c: (len(every & set(word_key(w) for w in c)), -len(c)))
+
+
+line_end_punctuation = re.compile(r'[,;:.!?][\'"’”)]*$')
+strong_punctuation = re.compile(r'[;:.!?][\'"’”)]*$')
+# words that often start a line of a hymn but are seldom capitalised in the middle of one
+line_starts = set("""
+    a and as at but by do for from had has have here how if in is it let lo may my no nor not
+    now of oh on or our see shall should so such that the their then there these they this
+    those though through thus till to up we were what when where which while who whose why
+    will with would ye yet you your""".split())
+
+
+def poem_lines( words, shortest=3):
+    """ splits the words of a verse into the lines of the poem. A new line starts with a
+    capital letter, after a line of at least shortest words that ends with punctuation or
+    where the new line starts with a word that often starts one (line_starts). After a
+    comma a line does not start with I or O (e.g. 'Jesus, I my cross') """
+    lines = [[]]
+    for i, w in enumerate(words):
+        lines[-1].append(w)
+        following = words[i+1] if i + 1 < len(words) else None
+        if following is None or not following[0].isupper() or len(lines[-1]) < shortest:
+            continue
+        if (strong_punctuation.search(w) or word_key(following) in line_starts or
+                (line_end_punctuation.search(w) and not re.match(r'(I|O)\W', following + ' '))):
+            lines.append([])
+    return [' '.join(line) for line in lines if len(line) > 0]
+
+
+def braille_shenandoah_lyrics( piece, louistable='en-GB-g2.ctb', width=linewidth):
+    """ the words of each verse on their own, a line of the poem at a time (wrapped to
+    width), the first line starting with the verse number. Verses are separated by a
+    blank line """
+    all_syllables = [part_syllables(p) for p in piece.parts]
+    phrases_by_verse = markup_phrases(piece)
+    verses = sorted(set(s[1] for syllables in all_syllables for s in syllables) | set(phrases_by_verse))
+    result = ''
+    for verse in verses:
+        lines = poem_lines(verse_words(all_syllables, phrases_by_verse, verse))
+        for n, line in enumerate(lines):
+            text = (f'{verse}. ' if n == 0 else '') + line
+            result += textwrap.fill(louis.translateString([louistable], text.lower()),
+                                    width=width, break_on_hyphens=False) + '\n'
+        result += '\n'
     return result
 
 
@@ -1030,22 +1172,28 @@ def shenandoah_title( music_file):
 
 
 def braillesong_shenandoah( music_file, parts, louistable='en-GB-g2.ctb', width=linewidth):
-    """ produces string with the title then, for each part, its music without words
-    followed by each verse as alternating lines of words and music """
+    """ produces string with the title and, for each part, its music without words; then
+    the words of each verse on their own; then for each part each verse as alternating
+    lines of words and music. Sections are separated by blank lines """
     piece = music21.converter.parse(music_file, forceSource=True)
     result = textwrap.fill(louis.translateString([louistable], shenandoah_title(music_file).lower()),
                            width=width, break_on_hyphens=False) + '\n'
     key = key_from_file_or_piece(piece)
     part_names = [str(p.partName).lower() for p in piece.parts]
+    line_by_lines = []
     for p in parts:
         if p.lower() not in part_names:
             continue # e.g. no alto in a three part song
         part_number = part_names.index(p.lower())
-        result += '  ' + louis.translateString([louistable], p) + ':\n'
+        header = '  ' + louis.translateString([louistable], p) + ':\n'
+        result += header
         result += braille_shenandoah_part(piece.parts[part_number], key, louistable=louistable, width=width)
-        result += braille_shenandoah_part_line_by_line(piece, part_number, key, louistable=louistable, width=width)
-    result = '\n'.join([s for s in result.splitlines() if len(s.strip())]) # removing lines with only whitespace
-    return result
+        verses = braille_shenandoah_part_line_by_line(piece, part_number, key, louistable=louistable,
+                                                      width=width).split('\n\n')
+        line_by_lines += [header + verses[0]] + verses[1:]
+    lyrics = braille_shenandoah_lyrics(piece, louistable=louistable, width=width)
+    # music, lyrics then each verse line by line
+    return join_sections([result] + lyrics.split('\n\n') + line_by_lines)
 
 
 def brailleShenandoah( parts, outdir, music_dir=shenandoah_musicdir, louistable='en-GB-g2.ctb',
